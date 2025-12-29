@@ -23,3 +23,8 @@ jobs:
           server-dir: /
           protocol: ftp
           timeout: 600000
+          exclude: |
+            uploads/**
+            database/**
+            .env
+            .github/**
