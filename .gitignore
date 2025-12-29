@@ -10,8 +10,9 @@ database/mydatabase.sqlite
 database/mydatabase-V1.sqlite
 database/mydatabasebak.sqlite
 
-# Uploads
-/uploads/
+# Uploads - ignore content, but keep the directory
+uploads/*
+!uploads/.gitkeep
 
 # Error logs
 error_log
