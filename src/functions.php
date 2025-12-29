@@ -901,6 +901,8 @@ function triggerProcessPendingProfits() {
     }
 }
 
+triggerProcessPendingProfits();
+
 function processPendingProfits() {
     global $pdo_mysql;
     try {
