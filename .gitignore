@@ -1,0 +1,20 @@
+# Environment variables
+.env
+
+# Compressed files
+*.zip
+*.apk
+
+# Databases
+database/mydatabase.sqlite
+database/mydatabase-V1.sqlite
+database/mydatabasebak.sqlite
+
+# Uploads
+/uploads/
+
+# Error logs
+error_log
+
+# Gemini CLI temp files
+.gemini/
