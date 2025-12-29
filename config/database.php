@@ -99,7 +99,7 @@ try {
         `value` TEXT
     )");
     $pdo_mysql->exec("INSERT IGNORE INTO settings (`key`, `value`) VALUES ('market_status', 'closed')");
-    $pdo_mysql->exec("INSERT IGNORE INTO settings (`key`, `value`) VALUES ('mail_delivery_mode', 'exec')");
+    $pdo_mysql->exec("INSERT IGNORE INTO settings (`key`, `value`) VALUES ('mail_delivery_mode', 'cron')");
 
     // --- Create Email Queue Table (MySQL) ---
     $pdo_mysql->exec("CREATE TABLE IF NOT EXISTS email_queue (
