@@ -893,7 +893,7 @@ function triggerProcessPendingProfits() {
     $settingStmt = $pdo_mysql->query("SELECT `value` FROM settings WHERE `key` = 'mail_delivery_mode'");
     $deliveryMode = $settingStmt->fetchColumn();
 
-    if ($deliveryMode === 'exec') {
+    if ($deliveryMode === 'exec' && function_exists('exec')) {
         // Trigger background process immediately
         $command = "php " . __DIR__ . "/../cli/process_pending_profits.php";
         // Execute in background and redirect output to /dev/null
