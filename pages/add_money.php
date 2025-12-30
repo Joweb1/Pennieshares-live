@@ -328,7 +328,7 @@ require_once __DIR__ . '/../assets/template/intro-template.php';
     }
 </style>
 
-<div class="container mx-auto p-2 max-w-md min-h-screen flex flex-col">
+<div class="container mx-auto p-0 max-w-full flex flex-col">
     <?php if ($addMoneyStep === 1): ?>
         <header class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
             <a href="/wallet" class="material-icons text-gray-800 dark:text-gray-200">arrow_back_ios_new</a>
@@ -336,7 +336,7 @@ require_once __DIR__ . '/../assets/template/intro-template.php';
             <div class="w-6"></div> <!-- Placeholder for alignment -->
         </header>
 
-        <main class="flex-grow flex flex-col justify-center p-4">
+        <main class="flex-grow flex flex-col p-4">
             <?php if (!empty($addMoneyMessage) && $addMoneyStatus === 'error'): ?>
                 <div class="bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded relative mb-4 text-center mx-auto" role="alert">
                     <strong class="font-bold">Error!</strong>
