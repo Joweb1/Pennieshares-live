@@ -734,9 +734,9 @@ require_once __DIR__ . '/../assets/template/intro-template.php';
             <div class="stat-header">
                 <p class="stat-title">Wallet Balance</p>
                 <a href="/add_money" style="text-decoration: none;">
-                    <div style="display: flex; align-items: center; padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 8px; gap: 4px; transition: background-color 0.3s ease, color 0.3s ease;">
-                        <span class="material-icons-outlined" style="font-size: 18px; color: var(--text-primary);">add</span>
-                        <span style="font-size: 14px; font-weight: 500; color: var(--text-primary);">Add Money</span>
+                    <div style="display: flex; align-items: center; justify-content: center; padding: 8px 16px; border-radius: 8px; gap: 6px; background: linear-gradient(to right, #0f766e, #34d399); box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); transition: all 0.2s ease;">
+                        <span class="material-icons-outlined" style="font-size: 20px; color: white;">add</span>
+                        <span style="font-size: 15px; font-weight: 600; color: white;">Add Money</span>
                     </div>
                 </a>
             </div>
