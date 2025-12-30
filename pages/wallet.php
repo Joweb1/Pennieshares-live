@@ -733,7 +733,20 @@ require_once __DIR__ . '/../assets/template/intro-template.php';
         <div class="stat-card">
             <div class="stat-header">
                 <p class="stat-title">Wallet Balance</p>
-                <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 256 256"><path d="M216,48H48A24,24,0,0,0,24,72V184a24,24,0,0,0,24,24H216a16,16,0,0,0,16-16V168a16,16,0,0,0-16-16H64V136h24a8,8,0,0,0,0-16H64V104h88a8,8,0,0,0,0-16H64V72H216a8,8,0,0,1,8,8v8a8,8,0,0,0,16,0V80A32.09,32.09,0,0,0,208,48Z"></path></svg>
+                <a href="/add_money" class="btn btn-primary" style="
+    background-color: var(--accent-color);
+    color: var(--accent-text-color);
+    padding: 8px 12px;
+    border-radius: 8px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+">
+    <span class="material-icons-outlined">add</span>
+    Add Money
+</a>
             </div>
             <p class="stat-value" id="wallet-balance">SV <?php echo number_format($walletBalanceSV, 2); ?></p>
             <p class="stat-naira" id="wallet-naira"></p>
