@@ -330,12 +330,7 @@ require_once __DIR__ . '/../assets/template/intro-template.php';
 
 <div class="container mx-auto p-0 max-w-full flex flex-col">
     <?php if ($addMoneyStep === 1): ?>
-        <header class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-            <a href="/wallet" class="material-icons text-gray-800 dark:text-gray-200">arrow_back_ios_new</a>
-            <h1 class="font-bold text-lg text-primary">Add Money</h1>
-            <div class="w-6"></div> <!-- Placeholder for alignment -->
-        </header>
-
+        
         <main class="flex-grow flex flex-col p-4">
             <?php if (!empty($addMoneyMessage) && $addMoneyStatus === 'error'): ?>
                 <div class="bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded relative mb-4 text-center mx-auto" role="alert">
@@ -343,7 +338,7 @@ require_once __DIR__ . '/../assets/template/intro-template.php';
                     <span class="block sm:inline"><?php echo htmlspecialchars($addMoneyMessage); ?></span>
                 </div>
             <?php endif; ?>
-            <div class="bg-surface-light dark:bg-surface-dark rounded-lg shadow-lg p-6">
+            <div class="bg-surface-light dark:bg-surface-dark rounded-lg shadow-lg p-6 mx-auto w-full max-w-sm">
                 <h2 class="text-xl font-semibold mb-6 text-text-primary-light dark:text-text-primary-dark">Enter Amount to Deposit</h2>
                 <form method="POST" action="add_money">
                     <input type="hidden" name="action" value="submit_amount">
