@@ -14,7 +14,6 @@ if (isset($_SESSION['show_kyc_popup'])) {
     unset($_SESSION['show_kyc_popup']);
 }
 
-require_once __DIR__ . '/../src/functions.php';
 require_once __DIR__ . '/../src/assets_functions.php';
 
 check_auth();
