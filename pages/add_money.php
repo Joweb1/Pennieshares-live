@@ -101,6 +101,7 @@ require_once __DIR__ . '/../assets/template/intro-template.php';
 <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
 <script>
+  const BASE_URL = '<?php echo BASE_URL; ?>';
   tailwind.config = {
     darkMode: "class",
     theme: {
