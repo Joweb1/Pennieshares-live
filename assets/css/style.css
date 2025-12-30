@@ -735,15 +735,15 @@
     }
 
     .btn.accent {
-      background: var(--accent-color);
-      border-color: var(--accent-color);
-      color: var(--accent-text);
+      background: transparent;
+      border: 1px solid var(--accent-color);
+      color: var(--accent-color);
     }
 
     .btn.accent:hover {
-      background: var(--accent-color); /* No change on hover for solid accent */
-      border-color: var(--accent-color); /* No change on hover for solid accent */
-      opacity: 0.9;
+      background: var(--accent-color);
+      color: var(--accent-text);
+      opacity: 1; /* Remove opacity change on hover */
     }
 
     .btn.secondary {
