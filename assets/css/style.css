@@ -734,6 +734,18 @@
       border-color: var(--blue-600);
     }
 
+    .btn.accent {
+      background: var(--accent-color);
+      border-color: var(--accent-color);
+      color: var(--accent-text);
+    }
+
+    .btn.accent:hover {
+      background: var(--accent-color); /* No change on hover for solid accent */
+      border-color: var(--accent-color); /* No change on hover for solid accent */
+      opacity: 0.9;
+    }
+
     .btn.secondary {
       background: transparent;
       border-color: var(--red);

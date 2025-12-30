@@ -733,20 +733,10 @@ require_once __DIR__ . '/../assets/template/intro-template.php';
         <div class="stat-card">
             <div class="stat-header">
                 <p class="stat-title">Wallet Balance</p>
-                <a href="/add_money" class="btn btn-primary" style="
-    background-color: var(--accent-color);
-    color: var(--accent-text-color);
-    padding: 8px 12px;
-    border-radius: 8px;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: 500;
-">
-    <span class="material-icons-outlined">add</span>
-    Add Money
-</a>
+                <a href="/add_money" class="btn accent">
+                    <span class="material-icons-outlined">add</span>
+                    Add Money
+                </a>
             </div>
             <p class="stat-value" id="wallet-balance">SV <?php echo number_format($walletBalanceSV, 2); ?></p>
             <p class="stat-naira" id="wallet-naira"></p>
