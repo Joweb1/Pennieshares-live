@@ -4,6 +4,22 @@ require_once __DIR__ . '/email_functions.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/assets_functions.php';
 
+function getCached($key, $callback, $ttl = 3600) {
+    $cacheFile = __DIR__ . '/../database/cache/' . md5($key) . '.cache';
+    if (file_exists($cacheFile) && (time() - filemtime($cacheFile) < $ttl)) {
+        return unserialize(file_get_contents($cacheFile));
+    }
+
+    $data = $callback();
+
+    if (!is_dir(__DIR__ . '/../database/cache')) {
+        mkdir(__DIR__ . '/../database/cache', 0775, true);
+    }
+    file_put_contents($cacheFile, serialize($data));
+
+    return $data;
+}
+
 function getUserByEmail($email) {
     global $pdo_mysql;
     $stmt = $pdo_mysql->prepare("SELECT *, is_broker, is_verified FROM users WHERE email = :email");
@@ -548,24 +564,30 @@ function getUserWalletBalance($userId) {
 }
 
 function getTotalUsersWalletBalance() {
-    global $pdo_mysql;
-    $stmt = $pdo_mysql->prepare("SELECT SUM(wallet_balance) FROM users");
-    $stmt->execute();
-    return $stmt->fetchColumn() ?? 0;
+    return getCached('total_users_wallet_balance', function() {
+        global $pdo_mysql;
+        $stmt = $pdo_mysql->prepare("SELECT SUM(wallet_balance) FROM users");
+        $stmt->execute();
+        return $stmt->fetchColumn() ?? 0;
+    });
 }
 
 function getTotalAssetsCost() {
-    global $pdo_mysql;
-    $stmt = $pdo_mysql->prepare("SELECT SUM(at.price) FROM assets a JOIN asset_types at ON a.asset_type_id = at.id");
-    $stmt->execute();
-    return $stmt->fetchColumn() ?? 0;
+    return getCached('total_assets_cost', function() {
+        global $pdo_mysql;
+        $stmt = $pdo_mysql->prepare("SELECT SUM(at.price) FROM assets a JOIN asset_types at ON a.asset_type_id = at.id");
+        $stmt->execute();
+        return $stmt->fetchColumn() ?? 0;
+    });
 }
 
 function getTotalUsersProfit() {
-    global $pdo_mysql;
-    $stmt = $pdo_mysql->prepare("SELECT SUM(total_return) FROM users");
-    $stmt->execute();
-    return $stmt->fetchColumn() ?? 0;
+    return getCached('total_users_profit', function() {
+        global $pdo_mysql;
+        $stmt = $pdo_mysql->prepare("SELECT SUM(total_return) FROM users");
+        $stmt->execute();
+        return $stmt->fetchColumn() ?? 0;
+    });
 }
 
 function debitUserWallet($userId, $amount, $transactionDescription = '') {
@@ -1058,31 +1080,34 @@ function processPendingProfits() {
 function getPaginatedPendingProfits($limit, $offset, $searchQuery = '') {
     global $pdo_mysql;
 
-    // Base query for pending profits
-    $sql = "SELECT * FROM pending_profits";
+    // Base query with a JOIN to fetch usernames directly
+    $sql = "
+        SELECT pp.*, u.username 
+        FROM pending_profits pp
+        LEFT JOIN users u ON pp.user_id = u.id
+    ";
     $params = [];
-    $whereClauses = ['is_credited = 0']; // Always filter for uncredited profits
+    $whereClauses = ['pp.is_credited = 0']; // Always filter for uncredited profits
 
     if (!empty($searchQuery)) {
-        // Find user IDs from MySQL that match the search query by username, email, or partner code
-        $userStmt = $pdo_mysql->prepare("SELECT id FROM users WHERE username LIKE ? OR email LIKE ? OR partner_code LIKE ?");
-        $searchTerm = '%' . $searchQuery . '%';
-        $userStmt->execute([$searchTerm, $searchTerm, $searchTerm]);
-        $userIds = $userStmt->fetchAll(PDO::FETCH_COLUMN);
-
+        // Since we're joining, we can search users table directly
         $searchWhereClauses = [];
-        if (!empty($userIds)) {
-            $placeholders = implode(',', array_fill(0, count($userIds), '?'));
-            $searchWhereClauses[] = "user_id IN ($placeholders)";
-            // Add userIds to the start of the params array
-            $params = array_merge($userIds, $params);
-        }
+        $searchTerm = '%' . $searchQuery . '%';
         
-        // Also search payout_type
-        $searchWhereClauses[] = "payout_type LIKE ?";
-        $params[] = '%' . $searchQuery . '%';
+        $searchWhereClauses[] = "u.username LIKE ?";
+        $params[] = $searchTerm;
+
+        $searchWhereClauses[] = "u.email LIKE ?";
+        $params[] = $searchTerm;
+
+        $searchWhereClauses[] = "u.partner_code LIKE ?";
+        $params[] = $searchTerm;
         
-        if(!empty($searchWhereClauses)){
+        // Also search payout_type from pending_profits
+        $searchWhereClauses[] = "pp.payout_type LIKE ?";
+        $params[] = $searchTerm;
+        
+        if (!empty($searchWhereClauses)) {
              $whereClauses[] = "(" . implode(' OR ', $searchWhereClauses) . ")";
         }
     }
@@ -1091,7 +1116,7 @@ function getPaginatedPendingProfits($limit, $offset, $searchQuery = '') {
         $sql .= " WHERE " . implode(' AND ', $whereClauses);
     }
     
-    $sql .= " ORDER BY credit_at ASC LIMIT ? OFFSET ?";
+    $sql .= " ORDER BY pp.credit_at ASC LIMIT ? OFFSET ?";
 
     $stmt = $pdo_mysql->prepare($sql);
 
@@ -1104,28 +1129,7 @@ function getPaginatedPendingProfits($limit, $offset, $searchQuery = '') {
     $stmt->bindValue($paramIndex, (int)$offset, PDO::PARAM_INT);
 
     $stmt->execute();
-    $pendingProfits = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // Now, fetch usernames for the retrieved user IDs
-    if (!empty($pendingProfits)) {
-        // Prevent empty IN() clause if there are no profits
-        $allUserIds = array_column($pendingProfits, 'user_id');
-        if(empty($allUserIds)) {
-            return [];
-        }
-
-        $userPlaceholders = implode(',', array_fill(0, count($allUserIds), '?'));
-        $userStmt = $pdo_mysql->prepare("SELECT id, username FROM users WHERE id IN ($userPlaceholders)");
-        $userStmt->execute($allUserIds);
-        $users = $userStmt->fetchAll(PDO::FETCH_KEY_PAIR);
-
-        // Manually add username to each pending profit
-        foreach ($pendingProfits as &$pp) {
-            $pp['username'] = $users[$pp['user_id']] ?? 'Unknown';
-        }
-    }
-
-    return $pendingProfits;
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
 function getTotalPendingProfitsCount($searchQuery = '') {

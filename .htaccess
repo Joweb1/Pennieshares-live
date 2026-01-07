@@ -42,7 +42,7 @@ RewriteCond %{HTTPS} off
 RewriteCond %{HTTP:X-Forwarded-SSL} !on
 RewriteCond %{HTTP_HOST} ^pennieshares\.com$ [OR]
 RewriteCond %{HTTP_HOST} ^www\.pennieshares\.com$
-RewriteRule ^(.*)$ "https\:\/\/www\.pennieshares\.com\/$1" [R=302,L]
+RewriteRule ^(.*)$ "https\:\/\/www\.pennieshares\.com\/$1" [R=301,L]
 
 # php -- BEGIN cPanel-generated handler, do not edit
 # Set the “ea-php83” package as the default “PHP” programming language.
