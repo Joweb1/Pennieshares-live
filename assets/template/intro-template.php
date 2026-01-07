@@ -369,11 +369,13 @@
           <li><a href="transfer"><span class="material-icons-outlined">swap_horiz</span>Transfer</a></li>
           <li><a href="partner"><span class="material-icons-outlined">handshake</span>Partner</a></li>
           <li><a href="find_broker"><span class="material-icons-outlined">search</span>Find Broker</a></li>
+          <li><a href="learning"><span class="material-icons-outlined">school</span>Academy</a></li>
           <li><a href="profile_view"><span class="material-icons-outlined">person</span>Profile</a></li>
           <li><a href="settings"><span class="material-icons-outlined">settings</span>Settings</a></li>
           <?php if (isset($_SESSION['user']) && $_SESSION['user']['is_admin'] == 1): ?>
           <li><a href="admin"><span class="material-icons-outlined">admin_panel_settings</span>Admin Panel</a></li>
-          
+          <li><a href="admin_user_view"><span class="material-icons-outlined">person_search</span>User View</a></li>
+          <li><a href="admin_content"><span class="material-icons-outlined">article</span>Manage Content</a></li>
           <li><a href="admin_kyc"><span class="material-icons-outlined">badge</span>KYC</a></li>
           <?php endif; ?>
           <?php if (isset($_SESSION['user']) && isset($_SESSION['user']['is_broker']) && $_SESSION['user']['is_broker'] == 1): ?>
@@ -397,10 +399,12 @@
           <a href="transfer"><span class="material-icons-outlined">swap_horiz</span></a>
           <a href="partner"><span class="material-icons-outlined">handshake</span></a>
           <a href="find_broker"><span class="material-icons-outlined">search</span></a>
+          <a href="learning"><span class="material-icons-outlined">school</span></a>
           <a href="profile_view"><span class="material-icons-outlined">person</span></a>
           <?php if (isset($_SESSION['user']) && $_SESSION['user']['is_admin'] == 1): ?>
           <a href="admin"><span class="material-icons-outlined">admin_panel_settings</span></a>
-          
+          <a href="admin_user_view"><span class="material-icons-outlined">person_search</span></a>
+          <a href="admin_content"><span class="material-icons-outlined">article</span></a>
           <a href="admin_kyc"><span class="material-icons-outlined">badge</span></a>
           <?php endif; ?>
           <?php if (isset($_SESSION['user']) && isset($_SESSION['user']['is_broker']) && $_SESSION['user']['is_broker'] == 1): ?>

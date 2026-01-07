@@ -8,13 +8,14 @@ $dotenv->load();
 
 // Start session and check authentication
 require_once __DIR__ . '/functions.php';
+require_once __DIR__ . '/content_functions.php';
 
 // Only perform authentication checks and session-dependent logic if not running from CLI
 if (php_sapi_name() !== 'cli') {
     check_auth();
 
     // Process any pending profits
-    processPendingProfits();
+    // processPendingProfits();
 
     // Get current user data
     $user = $_SESSION['user'];

@@ -1,22 +1,11 @@
 <?php
 require_once __DIR__ . '/../src/init.php';
-require_once __DIR__ . '/../src/content_functions.php'; // Include content management functions
+require_once __DIR__ . '/../src/content_functions.php';
 
-$pageTitle = "Learning Center";
+$pageTitle = "Latest News";
 
-// --- Learning Content Pagination ---
-$itemsPerPage = 6;
-$currentPage = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-$offset = ($currentPage - 1) * $itemsPerPage;
-
-// Fetch public learning content with pagination
-$learningContent = getAllContent('learning', 'public', $itemsPerPage, $offset);
-$totalLearningContent = getTotalContentCount('learning', 'public');
-$totalPages = ceil($totalLearningContent / $itemsPerPage);
-
-// --- Random News Content ---
-// Fetch 5 random public news content
-$newsContent = getAllContent('news', 'public', 5, null, true);
+// Fetch all public news content
+$newsContent = getAllContent('news', 'public');
 
 ?>
 <!DOCTYPE html>
@@ -51,7 +40,7 @@ $newsContent = getAllContent('news', 'public', 5, null, true);
             color: var(--text-primary);
             margin: 0;
         }
-        .learning-header {
+        .news-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -62,16 +51,16 @@ $newsContent = getAllContent('news', 'public', 5, null, true);
             top: 0;
             z-index: 10;
         }
-        .learning-header .brand {
+        .news-header .brand {
             display: flex;
             align-items: center;
             gap: 0.75rem;
         }
-        .learning-header .brand img {
+        .news-header .brand img {
             width: 32px;
             height: 32px;
         }
-        .learning-header .brand h1 {
+        .news-header .brand h1 {
             font-size: 1.25rem;
             font-weight: 600;
             margin: 0;
@@ -130,12 +119,12 @@ $newsContent = getAllContent('news', 'public', 5, null, true);
             font-weight: 700;
             margin-bottom: 1.5rem;
         }
-        .course-grid {
+        .news-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
             gap: 1.5rem;
         }
-        .course-card {
+        .news-card {
             background-color: var(--bg-secondary);
             border-radius: 12px;
             overflow: hidden;
@@ -146,71 +135,26 @@ $newsContent = getAllContent('news', 'public', 5, null, true);
             display: flex;
             flex-direction: column;
         }
-        .course-card:hover {
+        .news-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 8px 25px rgba(0,0,0,0.1);
         }
-        .course-card-image {
+        .news-card-image {
             width: 100%;
             height: 160px;
             object-fit: cover;
         }
-        .course-card-content {
+        .news-card-content {
             padding: 1rem;
             flex-grow: 1;
         }
-        .course-card-category {
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: var(--accent-color);
-            margin-bottom: 0.5rem;
-            text-transform: uppercase;
-        }
-        .course-card-title {
+        .news-card-title {
             font-size: 1.1rem;
             font-weight: 600;
             margin-bottom: 0.5rem;
         }
-        .course-card-description {
+        .news-card-description {
             font-size: 0.9rem;
-            color: var(--text-secondary);
-        }
-        .news-section {
-            margin-top: 4rem;
-        }
-        .news-carousel {
-            display: flex;
-            overflow-x: auto;
-            gap: 1.5rem;
-            padding-bottom: 1.5rem;
-            scrollbar-width: none; /* Firefox */
-        }
-        .news-carousel::-webkit-scrollbar {
-            display: none; /* Safari and Chrome */
-        }
-        .news-card {
-            flex: 0 0 320px;
-            background-color: var(--bg-secondary);
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-            text-decoration: none;
-            color: var(--text-primary);
-        }
-        .news-card-image {
-            width: 100%;
-            height: 180px;
-            object-fit: cover;
-        }
-        .news-card-content {
-            padding: 1rem;
-        }
-        .news-card-title {
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-        }
-        .news-card-source {
-            font-size: 0.8rem;
             color: var(--text-secondary);
         }
         .theme-toggle-button {
@@ -254,54 +198,14 @@ $newsContent = getAllContent('news', 'public', 5, null, true);
         html[data-theme='dark'] .theme-toggle-button .material-icons-outlined {
             color: #ffffff;
         }
-
-        /* Pagination Styles */
-        .pagination-button {
-            display: inline-flex; /* Changed to inline-flex */
-            align-items: center;
-            justify-content: center;
-            min-width: 40px; /* Re-added */
-            max-width: 80px; /* Re-added */
-            height: 40px;
-            padding: 0 10px;
-            border-radius: 8px;
-            background-color: var(--bg-secondary);
-            color: var(--text-primary);
-            border: 1px solid var(--border-color);
-            transition: all 0.2s ease;
-            text-decoration: none;
-            font-weight: 500;
-            white-space: nowrap; /* Prevent text from wrapping inside the button */
-        }
-        .pagination-wrapper {
-            flex-wrap: nowrap; /* Force buttons to stay in a single row */
-            overflow-x: auto; /* Allow scrolling if too many buttons for small screens */
-            padding-bottom: 5px; /* Prevent scrollbar from overlapping content */
-            width: fit-content; /* Ensure the wrapper only takes up the space it needs */
-            justify-content: center !important; /* Explicitly center content */
-            margin: 0 auto !important; /* Force center alignment */
-        }
-        .pagination-button:hover {
-            background-color: var(--bg-tertiary);
-            border-color: var(--accent-color);
-            color: var(--accent-color);
-        }
-        .pagination-button.active {
-            background-color: var(--accent-color);
-            color: var(--accent-text);
-            border-color: var(--accent-color);
-        }
-        .pagination-button.active:hover {
-            opacity: 0.9;
-        }
     </style>
 </head>
 <body>
 
-    <header class="learning-header">
+    <header class="news-header">
         <div class="brand">
             <img src="/assets/images/logo.png" alt="Pennieshare Logo">
-            <h1>Pennieshare Learning</h1>
+            <h1>Pennieshare News</h1>
         </div>
         <button class="kebab-menu-button" id="kebab-menu-btn" aria-label="Options menu">
             <span class="material-icons-outlined icon">more_vert</span>
@@ -311,7 +215,7 @@ $newsContent = getAllContent('news', 'public', 5, null, true);
                 <li><a href="/terms">Terms</a></li>
                 <li><a href="/logout">Logout</a></li>
                 <li>
-                    <button id="theme-toggle-learning" class="theme-toggle-button">
+                    <button id="theme-toggle-news" class="theme-toggle-button">
                         <span class="material-icons-outlined sun-icon">light_mode</span>
                         <span class="material-icons-outlined moon-icon">dark_mode</span>
                     </button>
@@ -321,51 +225,9 @@ $newsContent = getAllContent('news', 'public', 5, null, true);
     </header>
 
     <main class="container">
-        <section class="learning-section">
-            <h2 class="section-title">Trending Courses</h2>
-            <div class="course-grid">
-                <?php if (empty($learningContent)): ?>
-                    <p>No learning content available yet.</p>
-                <?php else: ?>
-                    <?php foreach ($learningContent as $content): ?>
-                        <a href="/learning_view?slug=<?= htmlspecialchars($content['slug']) ?>" class="course-card">
-                            <img src="<?= htmlspecialchars($content['banner_image'] ?? '/assets/images/placeholder.jpg') ?>" alt="<?= htmlspecialchars($content['title']) ?>" class="course-card-image">
-                            <div class="course-card-content">
-                                <p class="course-card-category"><?= htmlspecialchars(ucfirst($content['difficulty'])) ?></p>
-                                <h3 class="course-card-title"><?= htmlspecialchars($content['title']) ?></h3>
-                                <p class="course-card-description"><?= htmlspecialchars(substr(strip_tags($content['content']), 0, 100)) ?>...</p>
-                            </div>
-                        </a>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </div>
-
-            <?php if ($totalPages > 1): ?>
-                <div class="pagination-wrapper flex justify-center items-center space-x-4 mt-8">
-                    <?php if ($currentPage > 1): ?>
-                        <a href="?page=<?= $currentPage - 1 ?>" class="pagination-button flex-shrink-0">
-                            <span class="material-icons-outlined">chevron_left</span>
-                        </a>
-                    <?php endif; ?>
-
-                    <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-                        <a href="?page=<?= $i ?>" class="pagination-button flex-shrink-0 <?= ($i === $currentPage) ? 'active' : ''; ?>">
-                            <?= $i ?>
-                        </a>
-                    <?php endfor; ?>
-
-                    <?php if ($currentPage < $totalPages): ?>
-                        <a href="?page=<?= $currentPage + 1 ?>" class="pagination-button flex-shrink-0">
-                            <span class="material-icons-outlined">chevron_right</span>
-                        </a>
-                    <?php endif; ?>
-                </div>
-            <?php endif; ?>
-        </section>
-
         <section class="news-section">
-            <h2 class="section-title">Latest News</h2>
-            <div class="news-carousel">
+            <h2 class="section-title">Latest Updates</h2>
+            <div class="news-grid">
                 <?php if (empty($newsContent)): ?>
                     <p>No news content available yet.</p>
                 <?php else: ?>
@@ -400,7 +262,7 @@ $newsContent = getAllContent('news', 'public', 5, null, true);
             });
 
             // --- Theme Toggle Logic ---
-            const themeToggle = document.getElementById('theme-toggle-learning');
+            const themeToggle = document.getElementById('theme-toggle-news');
             const html = document.documentElement;
 
             const applyTheme = (theme) => {
@@ -424,7 +286,8 @@ $newsContent = getAllContent('news', 'public', 5, null, true);
               applyTheme(newTheme);
               localStorage.setItem('theme', newTheme);
             });
-                });
-            </script>
-        </body>
-        </html>
+        });
+    </script>
+
+</body>
+</html>

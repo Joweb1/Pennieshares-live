@@ -230,7 +230,9 @@
   <script src="https://unpkg.com/aos@2.3.1/dist/aos.js" defer></script>
   <script src="script.js" defer></script>
   <script src="https://unpkg.com/swiper/swiper-bundle.min.js" defer></script>
-  
-
+<script
+src='//uae.fw-cdn.com/40347839/219176.js'
+chat='true'>
+</script>
 </body>
 </html>

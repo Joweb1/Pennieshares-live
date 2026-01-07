@@ -1,68 +1,28 @@
 <?php
 require_once __DIR__ . '/../src/init.php';
+require_once __DIR__ . '/../src/content_functions.php';
 
-$pageTitle = "Article View"; // This would be dynamically set from DB
+$pageTitle = "Article View"; 
+$content = null;
 
-// Mock data - in a real app, you'd fetch this from a database based on $_GET['id']
-$article = [
-    'title' => 'Introduction to Stock Market Investing',
-    'image' => 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=2070&auto=format&fit=crop',
-    'content' => '
-        <p class="lead">The stock market can seem intimidating, but it\'s more accessible than you think. This guide will walk you through the fundamental concepts to get you started on your investment journey.</p>
-        
-        <h2>What is a Stock?</h2>
-        <p>A stock (also known as equity) represents a share in the ownership of a company. When you buy a company\'s stock, you are buying a small piece of that company. As the company grows and becomes more profitable, the value of your stock can increase. Conversely, if the company performs poorly, the value of your stock can decrease.</p>
+// Retrieve the slug from the URL
+$slug = filter_input(INPUT_GET, 'slug', FILTER_SANITIZE_URL);
 
-        <img src="https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?q=80&w=2070&auto=format&fit=crop" alt="Stock chart on a screen">
-
-        <h2>Why Do Companies Issue Stock?</h2>
-        <p>Companies issue stock for one primary reason: to raise capital. This capital can be used for various purposes, such as:</p>
-        <ul>
-            <li>Expanding operations</li>
-            <li>Launching new products</li>
-            <li>Paying off debt</li>
-            <li>Funding research and development</li>
-        </ul>
-
-        <h2>How Are Stock Prices Determined?</h2>
-        <p>A stock\'s price is determined by the law of supply and demand. If more people want to buy a stock (demand) than sell it (supply), the price goes up. If more people want to sell a stock than buy it, the price goes down.</p>
-        <blockquote>
-            Many factors can influence a stock\'s price, including company earnings, industry trends, economic news, and overall market sentiment.
-        </blockquote>
-
-        <h2>Key Terms to Know</h2>
-        <p>Here are a few essential terms you\'ll encounter frequently:</p>
-        <table class="custom-table">
-            <thead>
-                <tr>
-                    <th>Term</th>
-                    <th>Definition</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><strong>Market Capitalization (Market Cap)</strong></td>
-                    <td>The total value of a company\'s shares. Calculated by multiplying the share price by the number of outstanding shares.</td>
-                </tr>
-                <tr>
-                    <td><strong>Dividend</strong></td>
-                    <td>A distribution of a portion of a company\'s earnings to its shareholders.</td>
-                </tr>
-                <tr>
-                    <td><strong>Bull Market</strong></td>
-                    <td>A market in which share prices are rising, encouraging buying.</td>
-                </tr>
-                <tr>
-                    <td><strong>Bear Market</strong></td>
-                    <td>A market in which prices are falling, encouraging selling.</td>
-                </tr>
-            </tbody>
-        </table>
-
-        <h2>Conclusion</h2>
-        <p>Investing in the stock market is a long-term game. It requires patience, research, and a clear understanding of your financial goals. By starting with these basic concepts, you are building a strong foundation for making informed investment decisions.</p>
-    '
-];
+if ($slug) {
+    $content = getContentByIdOrSlug($slug);
+    if ($content) {
+        $pageTitle = htmlspecialchars($content['title']);
+    } else {
+        // Content not found, redirect to learning page
+        $_SESSION['error_message'] = "Content not found.";
+        header('Location: /learning');
+        exit;
+    }
+} else {
+    // No slug provided, redirect to learning page
+    header('Location: /learning');
+    exit;
+}
 
 ?>
 <!DOCTYPE html>
@@ -70,7 +30,7 @@ $article = [
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= htmlspecialchars($article['title']) ?></title>
+    <title><?= $pageTitle ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -193,11 +153,24 @@ $article = [
     <main class="container">
         <article>
             <div class="article-header">
-                <h1><?= htmlspecialchars($article['title']) ?></h1>
-                <img src="<?= htmlspecialchars($article['image']) ?>" alt="">
+                <img src="<?= htmlspecialchars($content['banner_image'] ?? '/assets/images/placeholder.jpg') ?>" alt="<?= $pageTitle ?>">
+                <h1><?= $pageTitle ?></h1>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                    By <?= htmlspecialchars($content['author_username'] ?? 'Admin') ?> on <?= date('F j, Y', strtotime($content['created_at'])) ?>
+                    <?php if ($content['type'] === 'learning'): ?>
+                        <span class="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                        <?php 
+                            if ($content['difficulty'] === 'beginner') echo 'bg-green-100 text-green-800';
+                            elseif ($content['difficulty'] === 'intermediate') echo 'bg-yellow-100 text-yellow-800';
+                            else echo 'bg-red-100 text-red-800';
+                        ?>">
+                            <?= htmlspecialchars(ucfirst($content['difficulty'])) ?>
+                        </span>
+                    <?php endif; ?>
+                </p>
             </div>
             <div class="article-content">
-                <?= $article['content'] ?>
+                <?= $content['content'] ?>
             </div>
         </article>
     </main>

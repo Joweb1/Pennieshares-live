@@ -1,10 +1,79 @@
-<p>Dear {{username}},</p>
-<p>Your deposit of SV {{amount_sv}} (₦{{amount_naira}}) to your Pennieshares wallet was successful!</p>
-<p>Your wallet balance has been updated.</p>
-<p><strong>Transaction Details:</strong></p>
-<ul>
-    <li><strong>Amount (SV):</strong> SV {{amount_sv}}</li>
-    <li><strong>Amount (Naira):</strong> ₦{{amount_naira}}</li>
-    <li><strong>Reference:</strong> {{reference}}</li>
-</ul>
-<p>Thank you for choosing Pennieshares.</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deposit Successful</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background-color: #4CAF50;
+            color: #ffffff;
+            padding: 10px 0;
+            text-align: center;
+            border-radius: 8px 8px 0 0;
+        }
+        .content {
+            padding: 20px;
+        }
+        .footer {
+            text-align: center;
+            font-size: 0.8em;
+            color: #777;
+            margin-top: 20px;
+            border-top: 1px solid #eee;
+            padding-top: 10px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #4CAF50;
+            color: #ffffff;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>Deposit Successful!</h2>
+        </div>
+        <div class="content">
+            <p>Hello {{username}},</p>
+            <p>We are excited to confirm that your deposit to your Pennieshares wallet was successful!</p>
+            <p><strong>Details of your deposit:</strong></p>
+            <ul>
+                <li>Amount (SV): <strong>SV {{amount_sv}}</strong></li>
+                <li>Amount (Naira): <strong>₦ {{amount_naira}}</strong></li>
+                <li>Transaction Reference: <strong>{{reference}}</strong></li>
+            </ul>
+            <p>Your wallet balance has been updated accordingly. You can now use your funds to explore investment opportunities on Pennieshares.</p>
+            <p>Thank you for choosing Pennieshares!</p>
+            <p>
+                <a href="{{base_url}}/wallet" class="button">View Your Wallet</a>
+            </p>
+        </div>
+        <div class="footer">
+            <p>&copy; {{current_year}} Pennieshares. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

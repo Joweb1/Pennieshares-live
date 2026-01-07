@@ -975,6 +975,10 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(updateProfitWidget, 6000);
 });
 </script>
+<script
+src='//uae.fw-cdn.com/40347839/219176.js'
+chat='true'>
+</script>
 
 <?php
 // Include the end template

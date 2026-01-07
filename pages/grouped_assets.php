@@ -48,6 +48,9 @@ foreach ($individualAssets as $asset) {
 }
 
 $page_title = htmlspecialchars($assetType['name']) . " Details";
+$session_message = $_SESSION['sell_asset_message'] ?? null;
+$session_status = $_SESSION['sell_asset_status'] ?? null;
+unset($_SESSION['sell_asset_message'], $_SESSION['sell_asset_status']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -71,6 +74,10 @@ $page_title = htmlspecialchars($assetType['name']) . " Details";
       --accent: #2563eb;
       --header-bg: #ffffff;
       --shadow-color: rgba(0,0,0,0.05);
+      --success-bg: rgba(4, 120, 87, 0.1);
+      --success-text: #065f46;
+      --error-bg: rgba(185, 28, 28, 0.1);
+      --error-text: #991b1b;
     }
 
     html[data-theme="dark"] {
@@ -85,6 +92,10 @@ $page_title = htmlspecialchars($assetType['name']) . " Details";
       --accent: #3b82f6;
       --header-bg: #1f2937;
       --shadow-color: rgba(0,0,0,0.2);
+      --success-bg: rgba(74, 222, 128, 0.1);
+      --success-text: #a7f3d0;
+      --error-bg: rgba(248, 113, 113, 0.1);
+      --error-text: #fca5a5;
     }
     body {
         font-family: 'Roboto', sans-serif;
@@ -184,6 +195,24 @@ $page_title = htmlspecialchars($assetType['name']) . " Details";
     .pin-modal.visible {
         display: flex;
     }
+
+    /* Alert Box */
+    .alert-box {
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .alert-success {
+        background-color: var(--success-bg);
+        color: var(--success-text);
+    }
+    .alert-error {
+        background-color: var(--error-bg);
+        color: var(--error-text);
+    }
 </style>
 </head>
 <body>
@@ -195,6 +224,13 @@ $page_title = htmlspecialchars($assetType['name']) . " Details";
   </header>
 
   <main class="main-content">
+    <?php if ($session_message): ?>
+    <div id="alertBox" class="alert-box <?php echo $session_status === 'success' ? 'alert-success' : 'alert-error'; ?>">
+        <span><?php echo htmlspecialchars($session_message); ?></span>
+        <button onclick="document.getElementById('alertBox').style.display='none'">&times;</button>
+    </div>
+    <?php endif; ?>
+
     <div class="flex items-center mb-2">
       <img alt="Asset Logo" id="assetLogo" class="h-20 w-20 mr-4 rounded-md" src="<?php echo htmlspecialchars($assetType['image_link']); ?>"/>
       <div>
@@ -249,6 +285,9 @@ $page_title = htmlspecialchars($assetType['name']) . " Details";
                                 } elseif ($asset['is_completed']) {
                                     $status = 'Completed';
                                     $statusClass = 'status-completed';
+                                } elseif ($asset['sale_status'] === 'pending') {
+                                    $status = 'Selling';
+                                    $statusClass = 'status-completed'; // Using blue for "in progress" status
                                 } elseif ($asset['is_manually_expired'] || ($asset['expires_at'] && new DateTime($asset['expires_at']) < $now)) {
                                     $status = 'Expired';
                                     $statusClass = 'status-expired';
@@ -309,7 +348,7 @@ $page_title = htmlspecialchars($assetType['name']) . " Details";
             </div>
         </main>
         <div class="pb-12">
-            <form id="sellExpiredForm" method="post" action="sell_all_expired_assets.php">
+            <form id="sellExpiredForm" method="post" action="sell_all_expired_assets">
                 <input type="hidden" name="asset_type_id" value="<?php echo $assetTypeId; ?>">
                 <input type="hidden" name="transaction_pin" id="transaction_pin_hidden">
                 <button type="submit" id="confirmSellBtn" class="w-full bg-red-500 hover:bg-red-600 text-white py-4 rounded-full text-lg font-medium mb-6" disabled>

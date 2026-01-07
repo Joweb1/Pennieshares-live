@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = "Invalid email format.";
     } else {
-        $admin_email = 'penniepoint@gmail.com'; // Admin email
+        $admin_email = $_ENV['GMAIL_USERNAME'] ?? 'default_admin@example.com'; // Admin email from environment or default
         $subject = "New Contact Form Submission from {$name}";
         $email_body = "Name: {$name}\n";
         $email_body .= "Email: {$email}\n\n";

@@ -49,7 +49,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
 
         if ($_POST['action'] === 'approve_sale') {
-            $salePrice = $pendingAsset['original_price'] * 0.10; // 10% of original price
+            // Per user request, credit the full original price of the asset
+            $salePrice = $pendingAsset['original_price']; 
 
             // Credit user's wallet
             $creditResult = creditUserWallet($pendingAsset['user_id'], $salePrice, "Sale of expired asset: {$pendingAsset['asset_type_name']} (ID: {$assetId})");
@@ -62,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
 
             // Mark asset as approved
-            $updateStmt = $pdo_mysql->prepare("UPDATE assets SET sale_status = 'approved', is_sold = 1 WHERE id = ?");
+            $updateStmt = $pdo_mysql->prepare("UPDATE assets SET sale_status = 'approved', is_sold = 1, sold_at = NOW() WHERE id = ?");
             $updateStmt->execute([$assetId]);
             
             // Send success email

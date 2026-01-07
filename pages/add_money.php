@@ -4,602 +4,429 @@ require_once __DIR__ . '/../src/kyc_functions.php';
 
 check_auth();
 
-$currentUser = $_SESSION['user'];
-$loggedInUserId = $currentUser['id'];
+if (php_sapi_name() !== 'cli') {
+    $currentUser = $_SESSION['user'];
+    $loggedInUserId = $currentUser['id'];
 
-// Check KYC status
-$kyc_status = getKycStatus($loggedInUserId);
-if (!$kyc_status || $kyc_status['status'] !== 'verified') {
-    $_SESSION['show_kyc_popup'] = true;
-    header('Location: /wallet');
-    exit;
-}
-
-$addMoneyStep = 1; // 1: Enter Amount, 2: Confirm PIN
-
-$addMoneyAmountSV = null;
-$addMoneyAmountNaira = null;
-
-// Handle form submission and session management
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['action']) && $_POST['action'] === 'submit_amount') {
-        $amountSV = filter_input(INPUT_POST, 'amount', FILTER_VALIDATE_FLOAT);
-
-        if ($amountSV === false || $amountSV <= 0) {
-            $_SESSION['add_money_message'] = "Please enter a valid amount.";
-            $_SESSION['add_money_status'] = 'error';
-        } else {
-            $_SESSION['add_money_amount_sv'] = $amountSV;
-            $_SESSION['add_money_amount_naira'] = $amountSV * 100;
-        }
-        header("Location: add_money");
-        exit();
-    } elseif (isset($_POST['action']) && $_POST['action'] === 'confirm_add_money') {
-        $amountNaira = $_SESSION['add_money_amount_naira'] ?? null;
-        $amountSV = $_SESSION['add_money_amount_sv'] ?? null;
-        $pin = trim($_POST['transaction_pin'] ?? '');
-
-        $_SESSION['add_money_status'] = 'error'; // Default to error
-
-        if ($amountNaira === null || $amountNaira <= 0 || empty($pin)) {
-            $_SESSION['add_money_message'] = "Invalid details. Please try again.";
-        } elseif (!verifyTransactionPin($loggedInUserId, $pin)) {
-            $_SESSION['add_money_message'] = "Invalid transaction PIN.";
-        } else {
-            if ($amountNaira > 20000) {
-                // Simulate 2 minute delay
-                // In a real application, you might want to use async processing or queue.
-                // For this example, we directly set the error message.
-                // sleep(120); // Do not use sleep() in web requests
-                $_SESSION['add_money_message'] = "Transaction limit exceeded. Please contact a licensed broker to fund your wallet.";
-            } else {
-                // Proceed with Paystack
-                $paystack_data = [
-                    'key' => $_ENV['PAYSTACK_PUBLIC_KEY'],
-                    'email' => $currentUser['email'],
-                    'amount' => $amountNaira * 100, // in kobo
-                    'currency' => 'NGN',
-                    'ref' => 'pennieshares_add_money_' . uniqid(),
-                    'callback_url' => BASE_URL . '/add_money_callback.php'
-                ];
-                
-                // Redirect to a page that will handle the paystack iframe
-                $_SESSION['paystack_data'] = $paystack_data;
-                header("Location: /paystack_handler.php");
-                exit();
-            }
-        }
-        header("Location: add_money");
-        exit();
-    } elseif (isset($_POST['action']) && $_POST['action'] === 'go_back_to_step1') {
-        unset($_SESSION['add_money_amount_sv'], $_SESSION['add_money_amount_naira']);
-        header("Location: add_money");
-        exit();
+    // Check KYC status
+    $kyc_status = getKycStatus($loggedInUserId);
+    if (!$kyc_status || $kyc_status['status'] !== 'verified') {
+        $_SESSION['show_kyc_popup'] = true;
+        header('Location: /wallet');
+        exit;
     }
 }
-
-// Determine current step based on session data
-if (isset($_SESSION['add_money_amount_sv'])) {
-    $addMoneyStep = 2;
-    $addMoneyAmountSV = $_SESSION['add_money_amount_sv'];
-    $addMoneyAmountNaira = $_SESSION['add_money_amount_naira'];
-}
-
-// Read flash messages and then unset them
-$addMoneyMessage = $_SESSION['add_money_message'] ?? '';
-$addMoneyStatus = $_SESSION['add_money_status'] ?? null;
-$addedMoneySV = $_SESSION['add_money_amount_sv'] ?? 0; // Use for final display if success
-
-unset($_SESSION['add_money_message'], $_SESSION['add_money_status'], $_SESSION['add_money_amount_sv'], $_SESSION['add_money_amount_naira']);
-
-// Re-fetch current user data to ensure wallet balance is up-to-date
-$currentUser = getUserByIdOrName($loggedInUserId);
-$_SESSION['user'] = $currentUser;
-
-require_once __DIR__ . '/../assets/template/intro-template.php';
 ?>
-<script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
-<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
-<script>
-  const BASE_URL = '<?php echo BASE_URL; ?>';
-  tailwind.config = {
-    darkMode: "class",
-    theme: {
-      extend: {
-        colors: {
-          primary: "#10B981", // Emerald 500 - green from Recents tab
-          "background-light": "#F3F4F6", // Gray 100
-          "background-dark": "#111827", // Gray 900
-          "surface-light": "#FFFFFF",
-          "surface-dark": "#1F2937", // Gray 800
-          "text-primary-light": "#1F2937", // Gray 800
-          "text-primary-dark": "#F9FAFB", // Gray 50
-          "text-secondary-light": "#6B7280", // Gray 500
-          "text-secondary-dark": "#9CA3AF", // Gray 400
-          "border-light": "#E5E7EB",
-          "border-dark": "#374151",
-          "white": "#FFFFFF",
-        },
-        fontFamily: {
-          sans: ["Roboto", "sans-serif"],
-        },
-        borderRadius: {
-          DEFAULT: "0.5rem",
-        },
-        fontSize: {
-          'xs': '0.7rem',
-          'sm': '0.8rem',
-          'base': '0.9rem',
-          'lg': '1.2rem',
-          'xl': '1.5rem',
-          '2xl': '1.5rem',
-          '3xl': '1.8rem',
-          '4xl': '1.8rem',
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Add Money</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <script src="https://js.paystack.co/v1/inline.js"></script>
+    <style>
+        :root {
+            --primary-text: #1f2937;
+            --secondary-text: #6b7280;
+            --background: #f9fafb;
+            --surface: #ffffff;
+            --border: #e5e7eb;
+            --primary-accent: #10B981;
+            --popup-overlay-bg: rgba(0, 0, 0, 0.5);
+            --numpad-hover-bg: #f3f4f6; /* Tailwind gray-100 */
         }
-      },
-    },
-  };
-</script>
-<style>
-    .material-icons {
-      font-size: inherit;
-    }
-    body {
-      min-height: max(884px, 100dvh);
-      display: flex;
-      flex-direction: column;
-    }
-    .main-content {
-      flex-grow: 1;
-    }
-    .fade-in { animation: fadeIn .4s ease; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity:1; transform: translateY(0); } }
-    .purchase-modal-overlay {
-        position: fixed; /* Changed to fixed for full viewport coverage */
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        background-color: rgba(0, 0, 0, 0.6);
-        backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
-        display: flex;
-        padding:0 !important;
-        justify-content: center;
-        align-items: center;
-        z-index: 1000;
-        opacity: 0;
-        visibility: hidden;
-        transition: opacity 0.4s ease, visibility 0.4s ease;
-    }
-    .purchase-modal-overlay.visible {
-        opacity: 1;
-        visibility: visible;
-    }
-    .purchase-modal-content {
-        display:flex;
-        flex-direction:column;
-        border-radius: 24px;
-        padding: 2.5rem;
-        margin:0 !important;
-        width: 100%;
-        max-width: 580px;
-        height: 100%;
-        max-height: 100%;
-        text-align: center;
-        transform: scale(0.9);
-        transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-        overflow-y: auto; /* Allow scrolling for content */
-    }
-    html[data-theme="light"] .purchase-modal-content {
-        background: rgba(255, 255, 255, 0.75);
-        border: 1px solid rgba(255, 255, 255, 1);
-        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
-    }
-    html[data-theme="dark"] .purchase-modal-content {
-         background: rgba(30, 41, 59, 0.6);
-         border: 1px solid rgba(255, 255, 255, 0.15);
-    }
-    .modal-state { display: none; }
-    .modal-state.active { display: block; }
-    .processing-animation .spinner {
-        width: 80px;
-        height: 80px;
-        border: 6px solid rgba(var(--accent-color-rgb), 0.2);
-        border-top-color: var(--accent-color);
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-        margin: 0 auto 1.5rem;
-    }
-    @keyframes spin {
-        to { transform: rotate(360deg); }
-    }
-    .modal-title {
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: var(--text-primary-light);
-        margin-bottom: 0.5rem;
-    }
-    html[data-theme="dark"] .modal-title {
-        color: var(--text-primary-dark);
-    }
-    .modal-text {
-        font-size: 1.3rem;
-        color: var(--text-secondary-light);
-    }
-    html[data-theme="dark"] .modal-text {
-        color: var(--text-secondary-dark);
-    }
-    .success-animation .success-icon {
-        width: 100px;
-        height: 100px;
-        margin: 0 auto 1rem;
-    }
-    .success-animation .checkmark__circle {
-        stroke-dasharray: 166;
-        stroke-dashoffset: 166;
-        stroke-width: 2;
-        stroke-miterlimit: 10;
-        stroke: #7ac142;
-        fill: none;
-        animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
-    }
-    .success-animation .checkmark {
-        stroke-width: 2;
-        stroke-dasharray: 48;
-        stroke-dashoffset: 48;
-        stroke: #7ac142;
-        animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards;
-    }
-    @keyframes stroke {
-        100% { stroke-dashoffset: 0; }
-    }
-    .modal-info {
-        background-color: #f0f2f5; /* Adjusted for consistency */
-        border-radius: 12px;
-        padding: 1rem;
-        margin-top: 1.5rem;
-    }
-    html[data-theme="dark"] .modal-info {
-        background-color: #1f2937; /* Adjusted for consistency */
-    }
-    .info-item {
-        display: flex;
-        justify-content: space-between;
-        font-size: 0.9rem;
-        padding: 0.5rem 0;
-    }
-    .info-item .label { color: #6B7280; } /* Adjusted for consistency */
-    html[data-theme="dark"] .info-item .label { color: #9CA3AF; } /* Adjusted for consistency */
-    .info-item .value { font-weight: 600; }
-    html[data-theme="dark"] .info-item .value { color: #F9FAFB; }
-    .close-modal-btn {
-        margin-top: 1.5rem;
-        width: 100%;
-    }
-    .btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        height: 48px;
-        border-radius: 0.75rem;
-        font-size: 1.2rem;
-        font-weight: 700;
-        padding: 0 1.5rem;
-        cursor: pointer;
-        border: none;
-        text-decoration: none;
-        transition: background-color 0.2s, opacity 0.2s;
-    }
-    .btn-primary {
-        background-color: #10B981; /* Primary color from Tailwind config */
-        color: white;
-    }
-    .btn-primary:hover { background-color: #0e9f71; } /* Darker shade of primary */
-    .btn-full-width { width: 100%; }
-    .error-animation .error-icon {
-        width: 100px;
-        height: 100px;
-        margin: 0 auto 1rem;
-    }
-    .error-animation .x-mark__circle {
-        stroke-dasharray: 166;
-        stroke-dashoffset: 166;
-        stroke-width: 2;
-        stroke-miterlimit: 10;
-        stroke: #ef4444;
-        fill: none;
-        animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
-    }
-    .error-animation .x-mark {
-        stroke-width: 2;
-        stroke-dasharray: 48;
-        stroke-dashoffset: 48;
-        stroke: #ef4444;
-        animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards;
-    }
+        html[data-theme="dark"] {
+            --primary-text: #f9fafb;
+            --secondary-text: #9ca3af;
+            --background: #111827;
+            --surface: #1f2937;
+            --border: #374151;
+            --popup-overlay-bg: rgba(0, 0, 0, 0.7);
+            --numpad-hover-bg: rgb(55 65 81); /* Tailwind gray-700 */
+        }
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--background);
+            color: var(--primary-text);
+        }
+        .numpad-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            text-align: center;
+            font-size: 1.75rem;
+            font-weight: 300;
+            padding: 0 1rem;
+        }
 
-    .loading-spinner {
-        border: 4px solid rgba(255, 255, 255, 0.3);
-        border-radius: 50%;
-        border-top: 4px solid #fff;
-        width: 24px;
-        height: 24px;
-        animation: spin 1s linear infinite;
-    }
-</style>
+        .numpad-button:hover {
+            background-color: var(--numpad-hover-bg);
+        }
 
-<div class="container mx-auto p-0 max-w-full flex flex-col">
-    <?php if ($addMoneyStep === 1): ?>
-        
-        <main class="flex-grow flex flex-col p-4">
-            <?php if (!empty($addMoneyMessage) && $addMoneyStatus === 'error'): ?>
-                <div class="bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded relative mb-4 text-center mx-auto" role="alert">
-                    <strong class="font-bold">Error!</strong>
-                    <span class="block sm:inline"><?php echo htmlspecialchars($addMoneyMessage); ?></span>
-                </div>
-            <?php endif; ?>
-            <div class="bg-surface-light dark:bg-surface-dark rounded-lg shadow-lg p-6 mx-auto w-full max-w-sm">
-                <h2 class="text-xl font-semibold mb-6 text-text-primary-light dark:text-text-primary-dark">Enter Amount to Deposit</h2>
-                <form method="POST" action="add_money">
-                    <input type="hidden" name="action" value="submit_amount">
-                    <div class="mb-4">
-                        <label for="amount" class="block text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark mb-2">Amount (SV)</label>
-                        <div class="relative">
-                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-lg font-bold text-text-primary-light dark:text-text-primary-dark">SV</span>
-                            <input type="number" name="amount" id="amount" step="0.01" class="pl-12 pr-4 py-3 block w-full rounded-md border-gray-300 dark:border-gray-600 bg-background-light dark:bg-background-dark shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50 text-lg text-text-primary-light dark:text-text-primary-dark" required placeholder="0.00">
-                        </div>
-                    </div>
-                    <div class="mb-6 text-center">
-                        <p class="text-base text-text-secondary-light dark:text-text-secondary-dark">Equivalent in Naira:</p>
-                        <p class="text-2xl font-bold text-primary" id="naira_amount">₦0.00</p>
-                    </div>
-                    <button type="submit" class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3 px-4 rounded-lg transition-colors">Next</button>
-                </form>
-            </div>
-        </main>
-    <?php elseif ($addMoneyStep === 2): ?>
-        <div id="pinModal" class="h-screen flex-col purchase-modal-overlay visible">
-            <div id="pinStep" class="flex flex-col h-full purchase-modal-content">
-                <div class="flex justify-between items-center mb-4">
-                    <form method="POST" action="add_money" class="block">
-                        <input type="hidden" name="action" value="go_back_to_step1">
-                        <button type="submit" class="text-text-primary-light dark:text-text-primary-dark">
-                            <span class="material-icons">arrow_back_ios_new</span>
-                        </button>
-                    </form>
-                    <h2 class="modal-title">Confirm Deposit</h2>
-                    <div class="w-6"></div>
-                </div>
-                <div class="flex-grow flex flex-col justify-center items-center">
-                    <div class="text-center">
-                        <p class="modal-text">Enter PIN to confirm deposit of</p>
-                        <p class="modal-text mb-2"><strong id="confirmAmountPin">SV <?php echo number_format($addMoneyAmountSV, 2); ?> (₦<?php echo number_format($addMoneyAmountNaira, 2); ?>)</strong></p>
-                        <div class="my-4 flex justify-center">
-                            <div id="pinDisplayContainer" class="flex space-x-2">
-                                <input type="password" id="pinInput1" maxlength="1" class="w-12 h-12 text-center text-2xl font-bold bg-surface-light dark:bg-surface-dark rounded-lg border border-border-light dark:border-border-dark focus:outline-none focus:ring-2 focus:ring-primary" readonly>
-                                <input type="password" id="pinInput2" maxlength="1" class="w-12 h-12 text-center text-2xl font-bold bg-surface-light dark:bg-surface-dark rounded-lg border border-border-light dark:border-border-dark focus:outline-none focus:ring-2 focus:ring-primary" readonly>
-                                <input type="password" id="pinInput3" maxlength="1" class="w-12 h-12 text-center text-2xl font-bold bg-surface-light dark:bg-surface-dark rounded-lg border border-border-light dark:border-border-dark focus:outline-none focus:ring-2 focus:ring-primary" readonly>
-                                <input type="password" id="pinInput4" maxlength="1" class="w-12 h-12 text-center text-2xl font-bold bg-surface-light dark:bg-surface-dark rounded-lg border border-border-light dark:border-border-dark focus:outline-none focus:ring-2 focus:ring-primary" readonly>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="pb-12">
-                    <form id="addMoneyForm" method="post">
-                        <input type="hidden" name="action" value="confirm_add_money">
-                        <input type="hidden" name="transaction_pin" id="transaction_pin_hidden">
-                        <button type="submit" id="confirmAddMoneyBtn" class="w-full bg-primary hover:bg-primary/90 text-white py-4 rounded-full text-xl font-medium mb-6 flex items-center justify-center" disabled>
-                            <span class="button-text">Confirm</span>
-                            <span class="loading-spinner" style="display: none;"></span>
-                        </button>
-                    </form>
-                    <div id="pinNumpad" class="grid grid-cols-3 gap-y-4 text-center text-3xl font-light">
-                        <button type="button" class="text-text-primary-light dark:text-text-primary-dark p-4 rounded-lg hover:bg-background-light dark:hover:bg-background-dark transition-colors">1</button>
-                        <button type="button" class="text-text-primary-light dark:text-text-primary-dark p-4 rounded-lg hover:bg-background-light dark:hover:bg-background-dark transition-colors">2</button>
-                        <button type="button" class="text-text-primary-light dark:text-text-primary-dark p-4 rounded-lg hover:bg-background-light dark:hover:bg-background-dark transition-colors">3</button>
-                        <button type="button" class="text-text-primary-light dark:text-text-primary-dark p-4 rounded-lg hover:bg-background-light dark:hover:bg-background-dark transition-colors">4</button>
-                        <button type="button" class="text-text-primary-light dark:text-text-primary-dark p-4 rounded-lg hover:bg-background-light dark:hover:bg-background-dark transition-colors">5</button>
-                        <button type="button" class="text-text-primary-light dark:text-text-primary-dark p-4 rounded-lg hover:bg-background-light dark:hover:bg-background-dark transition-colors">6</button>
-                        <button type="button" class="text-text-primary-light dark:text-text-primary-dark p-4 rounded-lg hover:bg-background-light dark:hover:bg-background-dark transition-colors">7</button>
-                        <button type="button" class="text-text-primary-light dark:text-text-primary-dark p-4 rounded-lg hover:bg-background-light dark:hover:bg-background-dark transition-colors">8</button>
-                        <button type="button" class="text-text-primary-light dark:text-text-primary-dark p-4 rounded-lg hover:bg-background-light dark:hover:bg-background-dark transition-colors">9</button>
-                        <button type="button" id="togglePinVisibility" class="p-2 rounded-full text-text-secondary-light dark:text-text-secondary-dark hover:bg-background-light dark:hover:bg-background-dark transition-colors focus:outline-none">
-                            <span class="material-icons" id="pinVisibilityIcon">visibility_off</span>
-                        </button>
-                        <button type="button" class="text-text-primary-light dark:text-text-primary-dark p-4 rounded-lg hover:bg-background-light dark:hover:bg-background-dark transition-colors">0</button>
-                        <button type="button" id="pinBackspaceBtn" class="text-red-500 p-4 rounded-lg hover:bg-background-light dark:hover:bg-background-dark transition-colors">
-                            <span class="material-icons">backspace</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    <?php endif; ?>
-</div>
+        .numpad-button {
+            transition: background-color 0.2s ease;
+        }
 
-<!-- Status Modal -->
-<div class="purchase-modal-overlay" id="statusModal">
-    <div class="purchase-modal-content">
-        <div class="modal-state" id="processingState">
-            <div class="processing-animation">
-                <div class="loading-spinner"></div>
-            </div>
-            <h3 class="modal-title">Processing Deposit</h3>
-            <p class="modal-text">Please wait while we securely process your transaction.</p>
-        </div>
-        <div class="modal-state" id="successState">
-            <div class="success-animation">
-                <svg class="success-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
-                    <circle class="checkmark__circle" cx="26" cy="26" r="25" fill="none"/>
-                    <path class="checkmark" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
-                </svg>
-            </div>
-            <h3 class="modal-title">Deposit Successful!</h3>
-            <p class="modal-text">Your wallet has been credited.</p>
-            <div class="modal-info" id="modal-info">
-                <div class="info-item">
-                    <span class="label">Amount Deposited:</span>
-                    <span class="value" id="successAmount"></span>
-                </div>
-            </div>
-            <button class="btn btn-primary btn-full-width close-modal-btn">Done</button>
-        </div>
-        <div class="modal-state" id="errorState">
-            <div class="error-animation">
-                <svg class="error-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
-                    <circle class="x-mark__circle" cx="26" cy="26" r="25" fill="none"/>
-                    <path class="x-mark" fill="none" d="M16 16 36 36 M36 16 16 36"/>
-                </svg>
-            </div>
-            <h3 class="modal-title">Deposit Failed</h3>
-            <p class="modal-text" id="errorMessage"></p>
-            <button class="btn btn-primary btn-full-width close-modal-btn">Try Again</button>
+        .numpad-button:hover {
+            background-color: var(--numpad-hover-bg);
+        }
+
+
+        /* Loading Spinner CSS */
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid var(--primary-accent);
+            width: 24px;
+            height: 24px;
+            -webkit-animation: spin 1s linear infinite;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+
+        @-webkit-keyframes spin {
+            0% { -webkit-transform: rotate(0deg); }
+            100% { -webkit-transform: rotate(360deg); }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Popup Message CSS */
+        .popup-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--popup-overlay-bg);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            visibility: hidden;
+            opacity: 0;
+            transition: visibility 0s, opacity 0.3s;
+        }
+
+        .popup-container.show {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .popup-message {
+            background-color: var(--surface);
+            color: var(--primary-text);
+            padding: 2rem;
+            border-radius: 0.5rem;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 80%;
+        }
+    </style>
+  </head>
+  <body>
+    <!-- Popup Container -->
+    <div id="customPopup" class="popup-container">
+        <div class="popup-message">
+            <p id="popupMessageText"></p>
+            <button id="popupCloseBtn" class="mt-4 px-4 py-2 rounded-md" style="background-color: var(--primary-accent); color: white;">OK</button>
         </div>
     </div>
-</div>
+    <!-- Add Money Modal -->
+    <div id="addMoneyModal" style="position: fixed; inset: 0; background-color: var(--background); color: var(--primary-text); display: flex; flex-direction: column; z-index: 50;">
+        <!-- Step 1: Amount Entry -->
+        <div id="amountStep" style="display: flex; flex-direction: column; height: 100%; padding: 1rem;">
+            <header class="flex justify-between items-center mb-4">
+                <a href="/wallet" class="material-icons">close</a>
+                <h2 class="text-lg font-bold">Add Money</h2>
+                <div class="w-6"></div>
+            </header>
+            <main class="flex-grow flex flex-col justify-center items-center">
+                <div class="text-center">
+                    <p class="text-lg" style="color: var(--secondary-text);">Amount in SV</p>
+                    <div class="flex items-center justify-center my-2">
+                        <span id="amountDisplay" class="text-6xl font-bold">0</span>
+                    </div>
+                    <p id="nairaEquivalent" class="text-sm" style="color: var(--secondary-text);">₦0.00</p>
+                </div>
+            </main>
+            <div class="pb-4">
+                <div class="pb-4">
+                <button id="goToPinStepBtn" class="w-full py-4 rounded-full text-lg font-medium mb-6" style="background-color: var(--primary-accent); color: white;" disabled>
+                    Next
+                </button>
+                <div class="numpad-grid">
+                    <button type="button" class="p-4 rounded-lg numpad-button">1</button>
+                    <button type="button" class="p-4 rounded-lg numpad-button">2</button>
+                    <button type="button" class="p-4 rounded-lg numpad-button">3</button>
+                    <button type="button" class="p-4 rounded-lg numpad-button">4</button>
+                    <button type="button" class="p-4 rounded-lg numpad-button">5</button>
+                    <button type="button" class="p-4 rounded-lg numpad-button">6</button>
+                    <button type="button" class="p-4 rounded-lg numpad-button">7</button>
+                    <button type="button" class="p-4 rounded-lg numpad-button">8</button>
+                    <button type="button" class="p-4 rounded-lg numpad-button">9</button>
+                    <button type="button" class="p-4 rounded-lg numpad-button">.</button>
+                    <button type="button" class="p-4 rounded-lg numpad-button">0</button>
+                    <button type="button" id="amountBackspaceBtn" class="text-red-500 p-4 rounded-lg numpad-button"><span class="material-icons">backspace</span></button>
+                </div>
+            </div>
+        </div>
+        </div>
 
-<script>
+        <!-- Step 2: PIN Entry -->
+        <div id="pinStep" style="display: none; flex-direction: column; height: 100%; padding: 1rem;">
+            <header class="flex justify-between items-center mb-4">
+                <button id="backToAmountStepBtn" class="material-icons">arrow_back_ios_new</button>
+                <h2 class="text-lg font-bold">Confirm Deposit</h2>
+                <div class="w-6"></div>
+            </header>
+            <main class="flex-grow flex flex-col justify-center items-center">
+                <div class="text-center">
+                    <p class="text-lg" style="color: var(--secondary-text);">Enter PIN to confirm deposit of</p>
+                    <p id="confirmAmountText" class="text-xl font-bold mb-2"></p>
+                    <div class="my-4 flex justify-center">
+                        <div class="flex space-x-2">
+                            <input type="password" maxlength="1" class="w-12 h-12 text-center text-2xl font-bold rounded-lg border focus:outline-none focus:ring-2" style="background-color: var(--surface); border-color: var(--border); --tw-ring-color: var(--primary-accent);" readonly>
+                            <input type="password" maxlength="1" class="w-12 h-12 text-center text-2xl font-bold rounded-lg border focus:outline-none focus:ring-2" style="background-color: var(--surface); border-color: var(--border); --tw-ring-color: var(--primary-accent);" readonly>
+                            <input type="password" maxlength="1" class="w-12 h-12 text-center text-2xl font-bold rounded-lg border focus:outline-none focus:ring-2" style="background-color: var(--surface); border-color: var(--border); --tw-ring-color: var(--primary-accent);" readonly>
+                            <input type="password" maxlength="1" class="w-12 h-12 text-center text-2xl font-bold rounded-lg border focus:outline-none focus:ring-2" style="background-color: var(--surface); border-color: var(--border); --tw-ring-color: var(--primary-accent);" readonly>
+                        </div>
+                    </div>
+                </div>
+            </main>
+            <div class="pb-4">
+                <form id="addMoneyForm" method="post" action="paystack_handler.php">
+                    <input type="hidden" name="amount" id="form_amount_sv">
+                    <input type="hidden" name="transaction_pin" id="form_pin">
+                    <button type="submit" id="confirmBtn" class="w-full py-4 rounded-full text-lg font-medium mb-6 transition-colors duration-300" style="background-color: var(--primary-accent); color: white;" disabled>
+                        Confirm
+                    </button>
+                </form>
+                <div class="numpad-grid">
+                    <button type="button" class="p-4 rounded-lg numpad-button">1</button>
+                    <button type="button" class="p-4 rounded-lg numpad-button">2</button>
+                    <button type="button" class="p-4 rounded-lg numpad-button">3</button>
+                    <button type="button" class="p-4 rounded-lg numpad-button">4</button>
+                    <button type="button" class="p-4 rounded-lg numpad-button">5</button>
+                    <button type="button" class="p-4 rounded-lg numpad-button">6</button>
+                    <button type="button" class="p-4 rounded-lg numpad-button">7</button>
+                    <button type="button" class="p-4 rounded-lg numpad-button">8</button>
+                    <button type="button" class="p-4 rounded-lg numpad-button">9</button>
+                    <div></div>
+                    <button type="button" class="p-4 rounded-lg numpad-button">0</button>
+                    <button type="button" id="pinBackspaceBtn" class="text-red-500 p-4 rounded-lg numpad-button"><span class="material-icons">backspace</span></button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    // Theme application logic
     document.addEventListener('DOMContentLoaded', () => {
-        // Theme toggle initialization (if needed, otherwise rely on intro-template)
-        function applyTheme(theme) {
-            document.documentElement.setAttribute('data-theme', theme);
-            if (theme === 'dark') {
-                document.documentElement.classList.add('dark');
-            } else {
-                document.documentElement.classList.remove('dark');
-            }
-        }
-        applyTheme(localStorage.getItem('theme') || 'light');
+        const htmlElement = document.documentElement;
 
-        // Step 1: Amount Input
-        const amountInput = document.getElementById('amount');
-        const nairaAmountSpan = document.getElementById('naira_amount');
-        if(amountInput) {
-            amountInput.addEventListener('input', () => {
-                const svAmount = parseFloat(amountInput.value) || 0;
-                const nairaAmount = svAmount * 100;
-                nairaAmountSpan.textContent = `₦${nairaAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-            });
-             // Trigger input event on load to set initial Naira value if amount is pre-filled
-             amountInput.dispatchEvent(new Event('input'));
+        const applyTheme = (theme) => {
+            htmlElement.setAttribute('data-theme', theme);
+        };
+
+        const savedTheme = localStorage.getItem('theme');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+        if (savedTheme) {
+            applyTheme(savedTheme);
+        } else if (prefersDark) {
+            applyTheme('dark');
+        } else {
+            applyTheme('light');
         }
 
-        const pinInputs = [
-            document.getElementById('pinInput1'),
-            document.getElementById('pinInput2'),
-            document.getElementById('pinInput3'),
-            document.getElementById('pinInput4')
-        ];
-        const pinNumpad = document.getElementById('pinNumpad');
+        // Rest of your existing DOMContentLoaded logic
+        const amountStep = document.getElementById('amountStep');
+        const pinStep = document.getElementById('pinStep');
+        const goToPinStepBtn = document.getElementById('goToPinStepBtn');
+        const backToAmountStepBtn = document.getElementById('backToAmountStepBtn');
+        const amountDisplay = document.getElementById('amountDisplay');
+        const nairaEquivalent = document.getElementById('nairaEquivalent');
+        const amountNumpad = amountStep.querySelector('.numpad-grid');
+        const amountBackspaceBtn = document.getElementById('amountBackspaceBtn');
+        const pinInputs = pinStep.querySelectorAll('input[type="password"]');
+        const pinNumpad = pinStep.querySelector('.numpad-grid');
         const pinBackspaceBtn = document.getElementById('pinBackspaceBtn');
-        const confirmAddMoneyBtn = document.getElementById('confirmAddMoneyBtn');
-        const transactionPinHidden = document.getElementById('transaction_pin_hidden');
-        const togglePinVisibility = document.getElementById('togglePinVisibility');
+        const confirmBtn = document.getElementById('confirmBtn');
+        const formAmountInput = document.getElementById('form_amount_sv');
+        const formPinInput = document.getElementById('form_pin');
+        const confirmAmountText = document.getElementById('confirmAmountText');
 
-        if(pinNumpad) {
-            pinNumpad.addEventListener('click', (e) => {
-                const target = e.target.closest('button');
-                if (!target) return;
+        let currentAmount = "0";
+        let currentPin = "";
+        const SV_TO_NAIRA_RATE = 100;
 
-                if (target.id === 'pinBackspaceBtn') {
-                    let currentPin = transactionPinHidden.value;
-                    if (currentPin.length > 0) {
-                        pinInputs[currentPin.length - 1].value = '';
-                        transactionPinHidden.value = currentPin.slice(0, -1);
-                        if (currentPin.length > 1) {
-                            pinInputs[currentPin.length - 2].focus();
-                        } else {
-                            pinInputs[0].focus();
-                        }
-                    }
-                    confirmAddMoneyBtn.disabled = true;
-                } else if (target.id === 'togglePinVisibility') {
-                    const isHidden = pinInputs[0].type === 'password';
-                    pinInputs.forEach(input => input.type = isHidden ? 'text' : 'password');
-                    target.querySelector('.material-icons').textContent = isHidden ? 'visibility' : 'visibility_off';
+        const updateAmountDisplay = () => {
+            amountDisplay.textContent = parseFloat(currentAmount).toLocaleString('en-US');
+            const nairaValue = parseFloat(currentAmount) * SV_TO_NAIRA_RATE;
+            nairaEquivalent.textContent = `₦${nairaValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            goToPinStepBtn.disabled = parseFloat(currentAmount) <= 0;
+        };
+
+        const updatePinDisplay = () => {
+            pinInputs.forEach((input, index) => {
+                input.value = currentPin[index] || '';
+            });
+            confirmBtn.disabled = currentPin.length !== 4;
+        };
+
+        amountNumpad.addEventListener('click', (e) => {
+            if (e.target.tagName !== 'BUTTON') return;
+            const key = e.target.textContent;
+
+            if (key >= '0' && key <= '9') {
+                if (currentAmount === "0") {
+                    currentAmount = key;
                 } else {
-                    const num = target.textContent.trim();
-                    let currentPin = transactionPinHidden.value;
-                    if (currentPin.length < 4) {
-                        pinInputs[currentPin.length].value = num;
-                        transactionPinHidden.value += num;
-                        if (currentPin.length < 3) {
-                            pinInputs[currentPin.length + 1].focus();
-                        } else {
-                            pinInputs[currentPin.length].blur();
-                        }
-                    }
-                    if (transactionPinHidden.value.length === 4) {
-                        confirmAddMoneyBtn.disabled = false;
-                    }
+                    currentAmount += key;
                 }
-            });
-        }
-        
-        const addMoneyForm = document.getElementById('addMoneyForm');
-        if (addMoneyForm) {
-            addMoneyForm.addEventListener('submit', function() {
-                if (transactionPinHidden.value.length === 4) {
-                    confirmAddMoneyBtn.disabled = true;
-                    confirmAddMoneyBtn.querySelector('.button-text').style.display = 'none';
-                    confirmAddMoneyBtn.querySelector('.loading-spinner').style.display = 'block';
-                }
-            });
-        }
-
-        // Status Modal Handling
-        const statusModal = document.getElementById('statusModal');
-        const processingState = document.getElementById('processingState');
-        const successState = document.getElementById('successState');
-        const errorState = document.getElementById('errorState');
-        const successSound = new Audio(`${BASE_URL}/assets/sound/new-notification-07-210334.mp3`);
-        const errorCallSound = new Audio(`${BASE_URL}/assets/sound/error-call.mp3`);
-        successSound.preload = 'auto';
-
-        const addMoneyStatus = <?php echo json_encode($addMoneyStatus); ?>;
-        const addMoneyMessage = <?php echo json_encode($addMoneyMessage); ?>;
-        const addedMoneySV = <?php echo json_encode($addedMoneySV); ?>; // From PHP, for success message
-
-        if (addMoneyStatus) {
-            statusModal.classList.add('visible');
-            processingState.classList.add('active');
-
-            // Simulate server processing time, then show actual status
-            setTimeout(() => {
-                processingState.classList.remove('active');
-
-                if (addMoneyStatus === 'success') {
-                    document.getElementById('successAmount').textContent = `SV ${parseFloat(addedMoneySV).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-                    successState.classList.add('active');
-                    if (window.navigator && window.navigator.vibrate) {
-                        navigator.vibrate(200);
-                    }
-                    successSound.play().catch(e => console.error("Sound play failed:", e));
-
-                } else if (addMoneyStatus === 'error') {
-                    document.getElementById('errorMessage').textContent = addMoneyMessage || 'An unknown error occurred during deposit.';
-                    errorState.classList.add('active');
-                    if (window.navigator && window.navigator.vibrate) {
-                        navigator.vibrate([100, 50, 100, 50, 100]);
-                    }
-                    errorCallSound.play().catch(e => console.error("Sound play failed:", e));
-                }
-            }, 1500); // 1.5 seconds delay for processing feedback
-        }
-
-        document.querySelectorAll('.close-modal-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                statusModal.classList.remove('visible');
-                // Reset states
-                successState.classList.remove('active');
-                errorState.classList.remove('active');
-                processingState.classList.remove('active');
-                // Optionally, redirect to reset the form or go back to step 1
-                // window.location.href = 'add_money'; // Reload page to clear session messages
-            });
+            } else if (key === '.' && !currentAmount.includes('.')) {
+                currentAmount += '.';
+            }
+            updateAmountDisplay();
         });
-    });
-</script>
 
-<?php require_once __DIR__ . '/../assets/template/end-template.php'; ?>
+        amountBackspaceBtn.addEventListener('click', () => {
+            if (currentAmount.length > 1) {
+                currentAmount = currentAmount.slice(0, -1);
+            } else {
+                currentAmount = "0";
+            }
+            updateAmountDisplay();
+        });
+
+        pinNumpad.addEventListener('click', (e) => {
+            if (e.target.tagName !== 'BUTTON') return;
+            const key = e.target.textContent;
+
+            if (key >= '0' && key <= '9' && currentPin.length < 4) {
+                currentPin += key;
+                updatePinDisplay();
+            }
+        });
+
+        pinBackspaceBtn.addEventListener('click', () => {
+            if (currentPin.length > 0) {
+                currentPin = currentPin.slice(0, -1);
+                updatePinDisplay();
+            }
+        });
+
+        goToPinStepBtn.addEventListener('click', () => {
+            amountStep.style.display = 'none';
+            pinStep.style.display = 'flex';
+            formAmountInput.value = currentAmount;
+            confirmAmountText.textContent = `SV ${parseFloat(currentAmount).toLocaleString()}`;
+        });
+
+        backToAmountStepBtn.addEventListener('click', () => {
+            pinStep.style.display = 'none';
+            amountStep.style.display = 'flex';
+            currentPin = "";
+            updatePinDisplay();
+        });
+        
+        confirmBtn.addEventListener('click', async (e) => {
+            e.preventDefault(); 
+            if (currentPin.length !== 4) return;
+
+            // Show loading state
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<span class="spinner"></span> Processing...';
+
+            formAmountInput.value = currentAmount;
+            formPinInput.value = currentPin;
+
+            const formData = new FormData(document.getElementById('addMoneyForm'));
+
+            try {
+                const response = await fetch('paystack_handler.php', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.status === 'error') {
+                    const transactionLimitExceededMessage = 'Transaction limit of SV200 exceeded. Contact a broker to fund your wallet.';
+                    const delay = (data.message === transactionLimitExceededMessage) ? 20000 : 0; // 20 seconds delay for specific error, 0 for others
+
+                    setTimeout(() => {
+                        showPopup(data.message);
+                        // Redirect back to amount step
+                        pinStep.style.display = 'none';
+                        amountStep.style.display = 'flex';
+                        currentPin = "";
+                        updatePinDisplay();
+                        // Reset confirm button
+                        confirmBtn.disabled = false;
+                        confirmBtn.innerHTML = 'Confirm';
+                    }, delay);
+                } else if (data.status === 'success' && data.paystack_data) {
+                    // Initialize and open Paystack inline script
+                    const handler = PaystackPop.setup({
+                        key: data.paystack_data.key,
+                        email: data.paystack_data.email,
+                        amount: data.paystack_data.amount,
+                        currency: data.paystack_data.currency,
+                        ref: data.paystack_data.ref,
+                        callback: function(response) {
+                            window.location = data.paystack_data.callback_url + '?reference=' + response.reference;
+                        },
+                        onClose: function() {
+                            showPopup('Payment was not completed.');
+                            // Reset confirm button
+                            confirmBtn.disabled = false;
+                            confirmBtn.innerHTML = 'Confirm';
+                        }
+                    });
+                    handler.openIframe();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                setTimeout(() => {
+                    showPopup('An unexpected error occurred. Please try again.');
+                    pinStep.style.display = 'none';
+                    amountStep.style.display = 'flex';
+                    currentPin = "";
+                    updatePinDisplay();
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = 'Confirm';
+                }, 0); // No delay for unexpected errors
+            }
+        });
+
+        // Popup functions
+        const customPopup = document.getElementById('customPopup');
+        const popupMessageText = document.getElementById('popupMessageText');
+        const popupCloseBtn = document.getElementById('popupCloseBtn');
+
+        function showPopup(message) {
+            popupMessageText.textContent = message;
+            customPopup.classList.add('show');
+        }
+
+        function hidePopup() {
+            customPopup.classList.remove('show');
+        }
+
+        popupCloseBtn.addEventListener('click', hidePopup);
+
+        updateAmountDisplay();
+        updatePinDisplay();
+    });
+    </script>
+  </body>
+</html>

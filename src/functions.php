@@ -31,33 +31,40 @@ function registerUser($fullname, $email, $username, $phone, $referral, $password
         "                :stage, :partner_code, :password, :is_verified)"
     );
 
-    $success = $stmt->execute([
-        ':fullname'      => $fullname,
-        ':email'         => $email,
-        ':username'      => $username,
-        ':phone'         => $phone,
-        ':referral'      => $referral,
-        ':stage'		 => 1,
-        ':partner_code'  => $partner_code,
-        ':password'      => $hash,
-        ':is_verified'   => 0 // Set to 0 for unverified
-    ]);
+    try {
+        $success = $stmt->execute([
+            ':fullname'      => $fullname,
+            ':email'         => $email,
+            ':username'      => $username,
+            ':phone'         => $phone,
+            ':referral'      => $referral,
+            ':stage'		 => 1,
+            ':partner_code'  => $partner_code,
+            ':password'      => $hash,
+            ':is_verified'   => 0 // Set to 0 for unverified
+        ]);
+    } catch (PDOException $e) {
+        // Re-throw the exception to be caught by the test script
+        throw new Exception("Database error during user registration: " . $e->getMessage());
+    }
 
     if ($success) {
         $user_id = $pdo_mysql->lastInsertId();
         $otp = generateAndStoreOtp($user_id); // Generate and store OTP
 
         if ($otp) {
-            // Send OTP email
-            $otp_data = [
-                'username' => $username,
-                'otp_code' => $otp
-            ];
-            sendNotificationEmail('otp_email', $otp_data, $email, 'Verify Your Pennieshares Account');
+            if (!isset($GLOBALS['is_test_mode']) || $GLOBALS['is_test_mode'] !== true) {
+                // Send OTP email
+                $otp_data = [
+                    'username' => $username,
+                    'otp_code' => $otp
+                ];
+                sendNotificationEmail('otp_email', $otp_data, $email, 'Verify Your Pennieshares Account');
+            }
 
             // Store email in session for verification page
             $_SESSION['registration_email_for_otp'] = $email;
-            return true; // Indicate success for redirection
+            return $user_id; // Indicate success for redirection
         } else {
             // Handle OTP generation/storage failure
             error_log("Failed to generate/store OTP for user: " . $email);
@@ -214,6 +221,11 @@ function resetUserPassword($userId, $newPassword) {
 
 // Function to check if user is authenticated
 function check_auth() {
+    if (php_sapi_name() === 'cli') {
+        // If running from CLI, skip authentication
+        return;
+    }
+
     if (session_status() === PHP_SESSION_NONE) {
         session_start();
     }
@@ -283,8 +295,34 @@ function deleteUser($user_id){
 function deleteUserAccount($userId) {
     global $pdo_mysql;
     try {
+        // First, delete related data from other tables
+        $tables_to_delete_from = [
+            "kyc_verifications",
+            "payment_proofs",
+            "push_subscriptions",
+            "expo_push_tokens",
+            "user_broker_interactions",
+            "wallet_transactions",
+            "pending_profits",
+            "assets",
+            "payouts",
+            "email_queue"
+        ];
+
+        foreach ($tables_to_delete_from as $table) {
+            // Check if the table has a user_id column before attempting to delete
+            $stmt = $pdo_mysql->prepare("SHOW COLUMNS FROM `$table` LIKE 'user_id'");
+            $stmt->execute();
+            if ($stmt->rowCount() > 0) {
+                $stmt = $pdo_mysql->prepare("DELETE FROM `$table` WHERE user_id = ?");
+                $stmt->execute([$userId]);
+            }
+        }
+
+        // Finally, delete the user from the users table
         $stmt = $pdo_mysql->prepare("DELETE FROM users WHERE id = ?");
         $stmt->execute([$userId]);
+
         return $stmt->rowCount() > 0;
     } catch (PDOException $e) {
         error_log("Error deleting user account: " . $e->getMessage());
@@ -300,17 +338,28 @@ function deleteUserAccount($userId) {
 
 function creditUserWallet($userId, $amount, $description = 'Broker Credited You', $assetDetails = null) {
     global $pdo_mysql;
-    if (!is_numeric($amount) || $amount <= 0) {
-        return false;
+    
+    $rounded_amount = round($amount, 2);
+    $final_amount = $rounded_amount;
+
+    // If the original amount was positive but rounded down to 0.00, set it to 0.01
+    if ($amount > 0 && $rounded_amount <= 0) {
+        $final_amount = 0.01;
     }
+
+    // If there's no amount to credit after all, consider it a success and do nothing.
+    if ($final_amount <= 0) {
+        return true;
+    }
+
     try {
         $stmt = $pdo_mysql->prepare("UPDATE users SET wallet_balance = wallet_balance + :amount WHERE id = :id");
-        $result = $stmt->execute(['amount' => $amount, 'id' => $userId]);
+        $result = $stmt->execute(['amount' => $final_amount, 'id' => $userId]);
         
         if ($result) {
             // Log the transaction
             $logStmt = $pdo_mysql->prepare("INSERT INTO wallet_transactions (user_id, type, amount, description) VALUES (?, ?, ?, ?)");
-            $logStmt->execute([$userId, 'credit', $amount, $description]);
+            $logStmt->execute([$userId, 'credit', $final_amount, $description]);
 
             // Send email to user only if not in CLI context
             if ($description !== 'Asset Profit') {
@@ -318,7 +367,7 @@ function creditUserWallet($userId, $amount, $description = 'Broker Credited You'
                 $transaction_data = [
                     'username' => $user['username'],
                     'transaction_type' => 'Credit',
-                    'amount' => $amount,
+                    'amount' => $final_amount,
                     'description' => $description,
                     'date' => date('Y-m-d H:i:s'),
                     'asset_name' => $assetDetails ? $assetDetails['name'] : null,
@@ -329,7 +378,7 @@ function creditUserWallet($userId, $amount, $description = 'Broker Credited You'
                 // Send push notification for credit
                 $payload = [
                     'title' => 'Wallet Credited!',
-                    'body' => 'Your wallet has been credited with SV' . number_format($amount, 4) . '. Reason: ' . $description,
+                    'body' => 'Your wallet has been credited with SV' . number_format($final_amount, 4) . '. Reason: ' . $description,
                     'icon' => 'assets/images/logo.png',
                 ];
                 sendPushNotification($userId, $payload);
@@ -436,6 +485,21 @@ function getUserByIdOrName($identifier) {
         $stmt->execute([$identifier]);
     }
     return $stmt->fetch(PDO::FETCH_ASSOC);
+}
+
+function findUser($searchTerm) {
+    if (filter_var($searchTerm, FILTER_VALIDATE_EMAIL)) {
+        return getUserByEmail($searchTerm);
+    }
+    return getUserByIdOrName($searchTerm);
+}
+
+function isMarketOpen() {
+    global $pdo_mysql;
+    $stmt = $pdo_mysql->prepare("SELECT `value` FROM settings WHERE `key` = 'market_status'");
+    $stmt->execute();
+    $marketStatus = $stmt->fetchColumn();
+    return $marketStatus === 'open';
 }
 
 
@@ -734,8 +798,9 @@ function getPaginatedUsers($limit, $offset, $searchQuery = '') {
     $params = [];
 
     if (!empty($searchQuery)) {
-        $sql .= " WHERE username LIKE ?";
-        $params[] = '%' . $searchQuery . '%';
+        $sql .= " WHERE username LIKE ? OR email LIKE ? OR partner_code LIKE ?";
+        $searchTerm = '%' . $searchQuery . '%';
+        $params = [$searchTerm, $searchTerm, $searchTerm];
     }
 
     // MySQL requires integer literals for LIMIT and OFFSET.
@@ -756,8 +821,9 @@ function getTotalUserCount($searchQuery = '') {
     $params = [];
 
     if (!empty($searchQuery)) {
-        $sql .= " WHERE username LIKE ?";
-        $params[] = '%' . $searchQuery . '%';
+        $sql .= " WHERE username LIKE ? OR email LIKE ? OR partner_code LIKE ?";
+        $searchTerm = '%' . $searchQuery . '%';
+        $params = [$searchTerm, $searchTerm, $searchTerm];
     }
 
     $stmt = $pdo_mysql->prepare($sql);
@@ -903,13 +969,18 @@ function triggerProcessPendingProfits() {
 
 function processPendingProfits() {
     global $pdo_mysql;
-    try {
-        $now = date('Y-m-d H:i:s');
-        $stmt = $pdo_mysql->prepare("SELECT * FROM pending_profits WHERE is_credited = 0 AND credit_at <= :now");
-        $stmt->execute(['now' => $now]);
-        $pendingProfits = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        foreach ($pendingProfits as $profit) {
+    $now = date('Y-m-d H:i:s');
+    // Select profits that are due and lock the rows to prevent other processes from touching them.
+    // Use a transaction for the entire processing of each profit to ensure atomicity.
+    $stmt = $pdo_mysql->prepare("SELECT * FROM pending_profits WHERE is_credited = 0 AND credit_at <= :now FOR UPDATE");
+    $stmt->execute(['now' => $now]);
+    $pendingProfits = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($pendingProfits as $profit) {
+        try {
+            $pdo_mysql->beginTransaction();
+
             // Check if the receiving asset is still active
             $assetStatusStmt = $pdo_mysql->prepare("
                 SELECT is_completed, is_manually_expired, expires_at 
@@ -921,54 +992,66 @@ function processPendingProfits() {
 
             $is_expired = ($assetStatus['expires_at'] && $assetStatus['expires_at'] < $now) || $assetStatus['is_manually_expired'] == 1;
 
-            if ($assetStatus && $assetStatus['is_completed'] == 0 && !$is_expired) {
-                // Asset is still active, proceed with crediting
-
-                // Get user details to check earnings_paused status
-                $user = getUserByIdOrName($profit['user_id']);
-
-                if ($user && $user['earnings_paused'] == 1) {
-                    // If earnings are paused, redirect to reservation fund
-                    $pdo_mysql->prepare("UPDATE company_funds SET total_reservation_fund = total_reservation_fund + ? WHERE id = 1")->execute([$profit['fractional_amount']]);
-                    // Log the event
-                    $logStmt = $pdo_mysql->prepare("INSERT INTO payouts (receiving_asset_id, triggering_asset_id, company_fund_type, amount, payout_type, created_at) VALUES (?, ?, ?, ?, ?, ?)");
-                    $logStmt->execute([$profit['receiving_asset_id'], 0, 'reservation_fund', $profit['fractional_amount'], 'paused_earnings', date('Y-m-d H:i:s')]);
-                    error_log("User #{$profit['user_id']} earnings paused. Payout redirected to reservation fund.");
-                } else {
-                    // Get asset details
-                    $assetStmt = $pdo_mysql->prepare("SELECT at.name, at.image_link FROM assets a JOIN asset_types at ON a.asset_type_id = at.id WHERE a.id = ?");
-                    $assetStmt->execute([$profit['receiving_asset_id']]);
-                    $assetDetails = $assetStmt->fetch(PDO::FETCH_ASSOC);
-
-                    // Credit user wallet
-                    $credit_success = creditUserWallet($profit['user_id'], $profit['fractional_amount'], 'Asset Profit', $assetDetails);
-
-                    if ($credit_success) {
-                        // Also update total_return when profit is actually credited
-                        $updateTotalReturnStmt = $pdo_mysql->prepare("UPDATE users SET total_return = total_return + ? WHERE id = ?");
-                        $updateTotalReturnStmt->execute([$profit['fractional_amount'], $profit['user_id']]);
-
-                        // Send push notification
-                        $payload = [
-                            'title' => 'Profit Credited!',
-                            'body' => 'You have received a profit of ' . number_format($profit['fractional_amount'], 4) . ' from your asset: ' . $assetDetails['name'],
-                            'icon' => 'assets/images/logo.png',
-                        ];
-                        sendPushNotification($profit['user_id'], $payload);
-                    }
-                }
-                // Mark as credited and delete pending profit regardless of where it went
-                $deleteStmt = $pdo_mysql->prepare("DELETE FROM pending_profits WHERE id = ?");
-                $deleteStmt->execute([$profit['id']]);
-            } else {
-                // Asset is completed or expired, so we just delete the pending profit
-                $deleteStmt = $pdo_mysql->prepare("DELETE FROM pending_profits WHERE id = ?");
-                $deleteStmt->execute([$profit['id']]);
-                error_log("Pending profit for asset #{$profit['receiving_asset_id']} was not credited because the asset is completed or expired.");
+            if (!$assetStatus || $assetStatus['is_completed'] != 0 || $is_expired) {
+                // Asset is completed, expired, or deleted. Mark profit as processed and log it.
+                $updateStmt = $pdo_mysql->prepare("UPDATE pending_profits SET is_credited = 1 WHERE id = ?");
+                $updateStmt->execute([$profit['id']]);
+                error_log("Pending profit for asset #{$profit['receiving_asset_id']} was not credited because the asset is no longer active.");
+                $pdo_mysql->commit();
+                continue; // Move to the next profit
             }
+
+            // Asset is active, proceed with crediting logic
+            $user = getUserByIdOrName($profit['user_id']);
+
+            if ($user && $user['earnings_paused'] == 1) {
+                // If earnings are paused, redirect to reservation fund
+                $pdo_mysql->prepare("UPDATE company_funds SET total_reservation_fund = total_reservation_fund + ? WHERE id = 1")->execute([$profit['fractional_amount']]);
+                // Log the event
+                $logStmt = $pdo_mysql->prepare("INSERT INTO payouts (receiving_asset_id, triggering_asset_id, company_fund_type, amount, payout_type, created_at) VALUES (?, ?, ?, ?, ?, ?)");
+                $logStmt->execute([$profit['receiving_asset_id'], 0, 'reservation_fund', $profit['fractional_amount'], 'paused_earnings', date('Y-m-d H:i:s')]);
+                error_log("User #{$profit['user_id']} earnings paused. Payout redirected to reservation fund.");
+            } else {
+                // Get asset details for the notification
+                $assetStmt = $pdo_mysql->prepare("SELECT at.name, at.image_link FROM assets a JOIN asset_types at ON a.asset_type_id = at.id WHERE a.id = ?");
+                $assetStmt->execute([$profit['receiving_asset_id']]);
+                $assetDetails = $assetStmt->fetch(PDO::FETCH_ASSOC);
+
+                // Credit user wallet (this function already logs the wallet transaction)
+                $credit_success = creditUserWallet($profit['user_id'], $profit['fractional_amount'], 'Asset Profit', $assetDetails);
+
+                if ($credit_success) {
+                    // Also update total_return when profit is actually credited
+                    $updateTotalReturnStmt = $pdo_mysql->prepare("UPDATE users SET total_return = total_return + ? WHERE id = ?");
+                    $updateTotalReturnStmt->execute([$profit['fractional_amount'], $profit['user_id']]);
+
+                    // Send push notification
+                    $payload = [
+                        'title' => 'Profit Credited!',
+                        'body' => 'You have received a profit of ' . number_format($profit['fractional_amount'], 4) . ' from your asset: ' . $assetDetails['name'],
+                        'icon' => 'assets/images/logo.png',
+                    ];
+                    sendPushNotification($profit['user_id'], $payload);
+                } else {
+                    // If creditUserWallet fails, throw an exception to trigger a rollback
+                    throw new Exception("creditUserWallet failed for user_id: {$profit['user_id']}");
+                }
+            }
+
+            // Mark the profit as credited in the database.
+            $updateStmt = $pdo_mysql->prepare("UPDATE pending_profits SET is_credited = 1 WHERE id = ?");
+            $updateStmt->execute([$profit['id']]);
+
+            // If all operations were successful, commit the transaction
+            $pdo_mysql->commit();
+
+        } catch (Exception $e) {
+            // An error occurred, rollback the transaction
+            if ($pdo_mysql->inTransaction()) {
+                $pdo_mysql->rollBack();
+            }
+            error_log("Error processing profit ID {$profit['id']}: " . $e->getMessage());
         }
-    } catch (Exception $e) {
-        error_log("Error during profit processing: " . $e->getMessage());
     }
 }
 
@@ -978,28 +1061,34 @@ function getPaginatedPendingProfits($limit, $offset, $searchQuery = '') {
     // Base query for pending profits
     $sql = "SELECT * FROM pending_profits";
     $params = [];
-    $whereClauses = [];
+    $whereClauses = ['is_credited = 0']; // Always filter for uncredited profits
 
-    // Note: Searching across databases is complex. This approach filters by username first if a search query is provided.
     if (!empty($searchQuery)) {
-        // Find user IDs from MySQL that match the search query
-        $userStmt = $pdo_mysql->prepare("SELECT id FROM users WHERE username LIKE ?");
-        $userStmt->execute(['%' . $searchQuery . '%']);
+        // Find user IDs from MySQL that match the search query by username, email, or partner code
+        $userStmt = $pdo_mysql->prepare("SELECT id FROM users WHERE username LIKE ? OR email LIKE ? OR partner_code LIKE ?");
+        $searchTerm = '%' . $searchQuery . '%';
+        $userStmt->execute([$searchTerm, $searchTerm, $searchTerm]);
         $userIds = $userStmt->fetchAll(PDO::FETCH_COLUMN);
 
+        $searchWhereClauses = [];
         if (!empty($userIds)) {
             $placeholders = implode(',', array_fill(0, count($userIds), '?'));
-            $whereClauses[] = "user_id IN ($placeholders)";
-            $params = array_merge($params, $userIds);
-        } else {
-            // If no user matches, we can add a condition for payout type or return empty
-             $whereClauses[] = "payout_type LIKE ?";
-             $params[] = '%' . $searchQuery . '%';
+            $searchWhereClauses[] = "user_id IN ($placeholders)";
+            // Add userIds to the start of the params array
+            $params = array_merge($userIds, $params);
+        }
+        
+        // Also search payout_type
+        $searchWhereClauses[] = "payout_type LIKE ?";
+        $params[] = '%' . $searchQuery . '%';
+        
+        if(!empty($searchWhereClauses)){
+             $whereClauses[] = "(" . implode(' OR ', $searchWhereClauses) . ")";
         }
     }
 
     if (!empty($whereClauses)) {
-        $sql .= " WHERE " . implode(' OR ', $whereClauses);
+        $sql .= " WHERE " . implode(' AND ', $whereClauses);
     }
     
     $sql .= " ORDER BY credit_at ASC LIMIT ? OFFSET ?";
@@ -1019,7 +1108,12 @@ function getPaginatedPendingProfits($limit, $offset, $searchQuery = '') {
 
     // Now, fetch usernames for the retrieved user IDs
     if (!empty($pendingProfits)) {
+        // Prevent empty IN() clause if there are no profits
         $allUserIds = array_column($pendingProfits, 'user_id');
+        if(empty($allUserIds)) {
+            return [];
+        }
+
         $userPlaceholders = implode(',', array_fill(0, count($allUserIds), '?'));
         $userStmt = $pdo_mysql->prepare("SELECT id, username FROM users WHERE id IN ($userPlaceholders)");
         $userStmt->execute($allUserIds);
@@ -1037,27 +1131,38 @@ function getPaginatedPendingProfits($limit, $offset, $searchQuery = '') {
 function getTotalPendingProfitsCount($searchQuery = '') {
     global $pdo_mysql;
 
-    // Note: This logic is simplified. A full search would be more complex.
+    // First, get the count of all uncredited profits
+    $base_sql = "SELECT COUNT(*) FROM pending_profits WHERE is_credited = 0";
+
     if (!empty($searchQuery)) {
         // Find user IDs from MySQL
-        $userStmt = $pdo_mysql->prepare("SELECT id FROM users WHERE username LIKE ?");
-        $userStmt->execute(['%' . $searchQuery . '%']);
+        $userStmt = $pdo_mysql->prepare("SELECT id FROM users WHERE username LIKE ? OR email LIKE ? OR partner_code LIKE ?");
+        $searchTerm = '%' . $searchQuery . '%';
+        $userStmt->execute([$searchTerm, $searchTerm, $searchTerm]);
         $userIds = $userStmt->fetchAll(PDO::FETCH_COLUMN);
 
-        // Build a query for pending_profits based on found user IDs or payout type
-        $sql = "SELECT COUNT(*) FROM pending_profits WHERE payout_type LIKE ?";
-        $params = ['%' . $searchQuery . '%'];
+        $params = [];
+        $searchWhereClauses = [];
+
+        // Add payout_type search
+        $searchWhereClauses[] = "payout_type LIKE ?";
+        $params[] = $searchTerm;
+
+        // Add user_id search if any were found
         if (!empty($userIds)) {
             $placeholders = implode(',', array_fill(0, count($userIds), '?'));
-            $sql .= " OR user_id IN ($placeholders)";
+            $searchWhereClauses[] = "user_id IN ($placeholders)";
             $params = array_merge($params, $userIds);
         }
+        
+        $sql = "SELECT COUNT(*) FROM pending_profits WHERE is_credited = 0 AND (" . implode(' OR ', $searchWhereClauses) . ")";
+        
         $stmt = $pdo_mysql->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchColumn();
     } else {
-        // If no search query, just count all
-        $stmt = $pdo_mysql->query("SELECT COUNT(*) FROM pending_profits");
+        // If no search query, just count all uncredited profits
+        $stmt = $pdo_mysql->query($base_sql);
         return $stmt->fetchColumn();
     }
 }

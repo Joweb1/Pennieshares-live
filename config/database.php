@@ -158,6 +158,7 @@ try {
         is_completed INT DEFAULT 0,
         is_manually_expired INT DEFAULT 0,
         is_sold INT DEFAULT 0,
+        sold_at DATETIME,
         created_at DATETIME NOT NULL,
         expires_at DATETIME,
         completed_at DATETIME,
@@ -217,6 +218,22 @@ try {
         volume INT,
         FOREIGN KEY(asset_type_id) REFERENCES asset_types(id) ON DELETE CASCADE
     )");
+    
+    // --- Create Content Table (MySQL) ---
+    $pdo_mysql->exec("CREATE TABLE IF NOT EXISTS content (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        type VARCHAR(50) NOT NULL, -- 'learning' or 'news'
+        title VARCHAR(255) NOT NULL,
+        slug VARCHAR(255) NOT NULL UNIQUE,
+        banner_image VARCHAR(255), -- Path to uploaded banner image
+        content TEXT NOT NULL, -- Full HTML content
+        status ENUM('public', 'private') DEFAULT 'private',
+        difficulty ENUM('beginner', 'intermediate', 'advanced') DEFAULT 'beginner', -- Only for 'learning' type
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        author_id INT, -- Assuming admin user who posted
+        FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE SET NULL
+    );");
     
     // Initial insert for company_funds if it doesn't exist
     $pdo_mysql->exec("INSERT IGNORE INTO company_funds (id) VALUES (1)");

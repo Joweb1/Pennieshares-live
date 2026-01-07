@@ -853,7 +853,7 @@ include __DIR__ . '/../assets/template/intro-template.php';
     <h1>Admin Dashboard</h1>
 
     <div class="admin-actions">
-        
+        <a href="admin_user_view" class="action-link">User Activity</a>
         <a href="admin_unverify" class="action-link">Un-verify Users</a>
         <a href="admin_unverified_users" class="action-link">Unverified Users</a>
         <a href="admin_pending_expired_sales" class="action-link">Pending Expired Sales</a>

@@ -369,6 +369,7 @@ function getUserAssets($userId) {
         SELECT a.*, at.name as asset_type_name, at.price as asset_price, at.payout_cap as type_payout_cap, at.image_link,
                (a.total_generational_received + a.total_shared_received) as total_earned,
                CASE 
+                   WHEN a.is_sold = 1 THEN 'Sold'
                    WHEN a.is_completed = 1 THEN 'Completed'
                    WHEN a.is_manually_expired = 1 THEN 'Expired'
                    WHEN (a.expires_at IS NOT NULL AND a.expires_at < :now) THEN 'Expired'
@@ -381,6 +382,22 @@ function getUserAssets($userId) {
     ");
     $stmt->execute([':user_id' => $userId, ':now' => $now]);
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function getUserAssetsWorth($userId) {
+    global $pdo_mysql;
+    $now = date('Y-m-d H:i:s');
+    $stmt = $pdo_mysql->prepare("
+        SELECT SUM(at.payout_cap) 
+        FROM assets a
+        JOIN asset_types at ON a.asset_type_id = at.id
+        WHERE a.user_id = :user_id
+        AND a.is_completed = 0
+        AND a.is_manually_expired = 0
+        AND (a.expires_at IS NULL OR a.expires_at > :now)
+    ");
+    $stmt->execute([':user_id' => $userId, ':now' => $now]);
+    return $stmt->fetchColumn() ?? 0;
 }
 
 function getGroupedUserAssets($userId) {
@@ -510,6 +527,11 @@ function getPendingExpiredSales() {
 
 function sellCompletedAssets($userId, $assetTypeId, $quantity, $pin) {
     global $pdo_mysql;
+
+    if (!isMarketOpen()) {
+        return ['success' => false, 'message' => 'Market is closed. You can only sell assets when the market is open.'];
+    }
+
     if (!verifyTransactionPin($userId, $pin)) {
         return ['success' => false, 'message' => 'Invalid transaction PIN.'];
     }
@@ -545,7 +567,7 @@ function sellCompletedAssets($userId, $assetTypeId, $quantity, $pin) {
         // Mark assets as sold
         $assetsToSell = array_slice($completedAssets, 0, $quantity);
         $placeholders = rtrim(str_repeat('?,', count($assetsToSell)), ',');
-        $stmt = $pdo_mysql->prepare("UPDATE assets SET is_sold = 1 WHERE id IN ($placeholders)");
+        $stmt = $pdo_mysql->prepare("UPDATE assets SET is_sold = 1, sold_at = NOW() WHERE id IN ($placeholders)");
         $stmt->execute($assetsToSell);
 
         // Credit user wallet
@@ -570,6 +592,10 @@ function sellCompletedAssets($userId, $assetTypeId, $quantity, $pin) {
 
 function sellAllExpiredAssetsOfType($userId, $assetTypeId, $pin) {
     global $pdo_mysql;
+
+    if (!isMarketOpen()) {
+        return ['success' => false, 'message' => 'Market is closed. You can only sell assets when the market is open.'];
+    }
 
     // 1. Verify transaction PIN
     if (!verifyTransactionPin($userId, $pin)) {
@@ -796,7 +822,7 @@ function addAssetType($name, $price, $payoutCap, $durationMonths, $imageLink = n
         // Generate initial historical data for the new asset type
         generateInitialAssetTypeStats($assetTypeId, $dividingPrice);
 
-        return true;
+        return $assetTypeId;
     } catch (PDOException $e) {
         error_log("Error adding asset type: " . $e->getMessage());
         return false;
@@ -877,6 +903,10 @@ function markAssetCompleted($assetId) {
 function sellCompletedAsset($userId, $assetId, $pin) {
     global $pdo_mysql; 
 
+    if (!isMarketOpen()) {
+        return ['success' => false, 'message' => 'Market is closed. You can only sell assets when the market is open.'];
+    }
+
     // 1. Verify transaction PIN
     if (!verifyTransactionPin($userId, $pin)) {
         return ['success' => false, 'message' => 'Invalid transaction PIN.'];
@@ -914,7 +944,7 @@ function sellCompletedAsset($userId, $assetId, $pin) {
         }
 
         // 5. Mark asset as sold
-        $updateStmt = $pdo_mysql->prepare("UPDATE assets SET is_sold = 1 WHERE id = ?");
+        $updateStmt = $pdo_mysql->prepare("UPDATE assets SET is_sold = 1, sold_at = NOW() WHERE id = ?");
         $updateStmt->execute([$assetId]);
 
         // Optionally, you might want to delete the asset instead of just marking it as sold
@@ -969,8 +999,9 @@ function getPaginatedAssets($limit, $offset, $searchQuery = '') {
 
     $userIds = [];
     if (!empty($searchQuery)) {
-        $stmt = $pdo_mysql->prepare("SELECT id FROM users WHERE username LIKE ?");
-        $stmt->execute(['%' . $searchQuery . '%']);
+        $stmt = $pdo_mysql->prepare("SELECT id FROM users WHERE username LIKE ? OR email LIKE ? OR partner_code LIKE ?");
+        $searchTerm = '%' . $searchQuery . '%';
+        $stmt->execute([$searchTerm, $searchTerm, $searchTerm]);
         $userIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
         if (empty($userIds)) {
             return []; // No users found, so no assets to return
@@ -1023,27 +1054,26 @@ function getPaginatedAssets($limit, $offset, $searchQuery = '') {
 function getTotalAssetCount($searchQuery = '') {
     global $pdo_mysql;
 
-    $userIds = [];
-    if (!empty($searchQuery)) {
-        $stmt = $pdo_mysql->prepare("SELECT id FROM users WHERE username LIKE ?");
-        $stmt->execute(['%' . $searchQuery . '%']);
-        $userIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
-        if (empty($userIds)) {
-            return 0; // No users found, so asset count is 0
-        }
+    if (empty($searchQuery)) {
+        $stmt = $pdo_mysql->query("SELECT COUNT(*) FROM assets");
+        return $stmt->fetchColumn();
     }
 
-    $sql = "SELECT COUNT(*) FROM assets";
-    $params = [];
+    // If there is a search query, find matching users first
+    $stmt = $pdo_mysql->prepare("SELECT id FROM users WHERE username LIKE ? OR email LIKE ? OR partner_code LIKE ?");
+    $searchTerm = '%' . $searchQuery . '%';
+    $stmt->execute([$searchTerm, $searchTerm, $searchTerm]);
+    $userIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-    if (!empty($userIds)) {
-        $placeholders = implode(',', array_fill(0, count($userIds), '?'));
-        $sql .= " WHERE user_id IN ($placeholders)";
-        $params = $userIds;
+    if (empty($userIds)) {
+        return 0; // No users found, so asset count is 0
     }
 
+    $placeholders = implode(',', array_fill(0, count($userIds), '?'));
+    $sql = "SELECT COUNT(*) FROM assets WHERE user_id IN ($placeholders)";
+    
     $stmt = $pdo_mysql->prepare($sql);
-    $stmt->execute($params);
+    $stmt->execute($userIds);
     return $stmt->fetchColumn();
 }
 

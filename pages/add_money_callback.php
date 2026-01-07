@@ -1,6 +1,6 @@
 <?php
-require_once __DIR__ . '/src/init.php';
-require_once __DIR__ . '/src/email_functions.php'; // Assuming email functions are here
+require_once __DIR__ . '/../src/init.php';
+require_once __DIR__ . '/../src/email_functions.php'; // Assuming email functions are here
 
 check_auth();
 
@@ -50,7 +50,7 @@ if (isset($_GET['reference'])) {
                 'reference' => $reference,
             ];
             // Assuming admin email is configured in environment
-            sendNotificationEmail('add_money_success_admin', $admin_email_data, $_ENV['ADMIN_EMAIL'], 'New Deposit Received on Pennieshares');
+            sendNotificationEmail('add_money_success_admin', $admin_email_data, $_ENV['GMAIL_USERNAME'], 'New Deposit Received on Pennieshares');
             
             $_SESSION['add_money_status'] = 'success';
             $_SESSION['add_money_message'] = "Your wallet has been credited with SV " . number_format($amount_sv, 2);
@@ -66,7 +66,7 @@ if (isset($_GET['reference'])) {
                 'reference' => $reference,
                 'error_detail' => "Payment successful but wallet credit failed."
             ];
-            sendNotificationEmail('add_money_failure_admin', $admin_email_data, $_ENV['ADMIN_EMAIL'], 'Paystack Deposit Discrepancy Alert!');
+            sendNotificationEmail('add_money_failure_admin', $admin_email_data, $_ENV['GMAIL_USERNAME'], 'Paystack Deposit Discrepancy Alert!');
         }
     } else {
         $_SESSION['add_money_status'] = 'error';
@@ -78,8 +78,7 @@ if (isset($_GET['reference'])) {
             'reference' => $reference,
             'error_detail' => "Paystack verification failed. HTTP Code: {$httpcode}. Response: " . json_encode($paystack_response)
         ];
-        sendNotificationEmail('add_money_failure_admin', $admin_email_data, $_ENV['ADMIN_EMAIL'], 'Paystack Deposit Verification Failed!');
-    }
+                    sendNotificationEmail('add_money_failure_admin', $admin_email_data, $_ENV['GMAIL_USERNAME'], 'Paystack Deposit Verification Failed!');    }
 } else {
     $_SESSION['add_money_status'] = 'error';
     $_SESSION['add_money_message'] = "No payment reference provided.";

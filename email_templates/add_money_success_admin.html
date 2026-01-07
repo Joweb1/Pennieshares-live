@@ -1,13 +1,68 @@
-<p>A new deposit has been successfully made to a user's wallet.</p>
-<p><strong>User Details:</strong></p>
-<ul>
-    <li><strong>Username:</strong> {{username}}</li>
-    <li><strong>Email:</strong> {{email}}</li>
-</ul>
-<p><strong>Deposit Details:</strong></p>
-<ul>
-    <li><strong>Amount (SV):</strong> SV {{amount_sv}}</li>
-    <li><strong>Amount (Naira):</strong> ₦{{amount_naira}}</li>
-    <li><strong>Reference:</strong> {{reference}}</li>
-</ul>
-<p>Please verify the transaction details if necessary.</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Deposit Notification</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background-color: #007bff;
+            color: #ffffff;
+            padding: 10px 0;
+            text-align: center;
+            border-radius: 8px 8px 0 0;
+        }
+        .content {
+            padding: 20px;
+        }
+        .footer {
+            text-align: center;
+            font-size: 0.8em;
+            color: #777;
+            margin-top: 20px;
+            border-top: 1px solid #eee;
+            padding-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>New Deposit Received</h2>
+        </div>
+        <div class="content">
+            <p>Dear Admin,</p>
+            <p>A new deposit has been successfully made to a user's wallet on Pennieshares.</p>
+            <p><strong>Deposit Details:</strong></p>
+            <ul>
+                <li>User Name: <strong>{{username}}</strong></li>
+                <li>User Email: <strong>{{email}}</strong></li>
+                <li>Amount (SV): <strong>SV {{amount_sv}}</strong></li>
+                <li>Amount (Naira): <strong>₦ {{amount_naira}}</strong></li>
+                <li>Transaction Reference: <strong>{{reference}}</strong></li>
+            </ul>
+            <p>Please log in to the admin panel for more details and to monitor transactions.</p>
+        </div>
+        <div class="footer">
+            <p>&copy; {{current_year}} Pennieshares. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

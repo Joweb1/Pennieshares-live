@@ -407,8 +407,8 @@ html[data-theme="dark"] .purchase-modal-content {
         <button data-range="1D" class="px-2 py-1 rounded-full text-xs font-semibold pill-transition">1D</button>
         <button data-range="1W" class="px-2 py-1 rounded-full text-xs font-semibold pill-transition">1W</button>
         <button data-range="1M" class="px-2 py-1 rounded-full text-xs font-semibold pill-transition">1M</button>
-        <button data-range="3M" class="px-2 py-1 rounded-full bg-green-700 text-white text-xs font-semibold pill-transition">3M</button>
-        <button data-range="1Y" class="px-2 py-1 rounded-full text-xs font-semibold pill-transition">1Y</button>
+        <button data-range="3M" class="px-2 py-1 rounded-full text-xs font-semibold pill-transition">3M</button>
+        <button data-range="1Y" class="px-2 py-1 rounded-full bg-green-700 text-white text-xs font-semibold pill-transition">1Y</button>
       </div>
       <div class="flex items-center gap-3">
         <span id="chartToggleIcon" class="material-icons text-primary cursor-pointer text-base">candlestick_chart</span>
@@ -772,7 +772,7 @@ const state = {
   currentAssetPrice: 0,
   chartType: 'candlestick',
   chart: null,
-  activeRange: '3M',
+  activeRange: '1Y',
   historicalData: [],
   marketOpen: false,
   prevClose: 0

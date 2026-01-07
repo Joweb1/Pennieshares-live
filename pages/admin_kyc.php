@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     sendNotificationEmail('kyc_approved_user', $user_data, $user_email, $user_subject);
 
                     // Send email to admin
-                    $admin_email = 'penniepoint@gmail.com'; // Or get from a config file
+                    $admin_email = $_ENV['GMAIL_USERNAME'] ?? 'default_admin@example.com'; // Admin email from environment or default
                     $admin_subject = "KYC Approval Notification";
                     $admin_data = [
                         'username' => $username,

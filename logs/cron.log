@@ -1,0 +1,9 @@
+[2026-01-07 19:11:17] Cron job error: Failed to delete old sold assets. Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'sold_at' in 'where clause'
+[2026-01-07 19:11:42] Cron job error: Failed to delete old sold assets. Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'sold_at' in 'where clause'
+[2026-01-07 19:12:37] Cron job error: Failed to delete old sold assets. Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'sold_at' in 'where clause'
+[2026-01-07 19:13:05] Cron job: Deleted 0 sold assets older than one month.
+[2026-01-07 19:31:30] --- Test log entry --- 
+[2026-01-07 19:42:19] START: process_mail_queue.php
+[2026-01-07 19:42:19] INFO: process_mail_queue.php - Another process is already running. Exiting.
+[2026-01-07 19:42:26] START: process_pending_profits.php
+[2026-01-07 19:42:26] INFO: process_pending_profits.php - Another process is already running. Exiting.

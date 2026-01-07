@@ -243,6 +243,10 @@ require_once __DIR__ . '/../assets/template/intro-template.php';
             </div>
         </main>
     </div>
+<script
+src='//uae.fw-cdn.com/40347839/219176.js'
+chat='true'>
+</script>
 
 <?php
 require_once __DIR__ . '/../assets/template/end-template.php';

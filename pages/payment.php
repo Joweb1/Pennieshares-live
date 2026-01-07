@@ -810,5 +810,10 @@ if (isset($_GET['upload_success'])) {
             }
         });
     </script>
+<script
+src='//uae.fw-cdn.com/40347839/219176.js'
+chat='true'>
+</script>
 </body>
 </html>
+
