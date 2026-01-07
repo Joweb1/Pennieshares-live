@@ -16,7 +16,7 @@ if (!$assetTypeId) {
 }
 
 try {
-    $stmt = $pdo->prepare(
+    $stmt = $pdo_mysql->prepare(
         "SELECT COUNT(*) FROM assets 
          WHERE user_id = :user_id 
            AND asset_type_id = :asset_type_id 

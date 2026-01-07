@@ -1226,13 +1226,15 @@ function initializeEventListeners() {
   });
 
   // PIN visibility toggle
-  togglePinVisibility.addEventListener('click', () => {
-    const isHidden = pinInputs[0].type === 'password';
-    pinInputs.forEach(input => {
-      input.type = isHidden ? 'text' : 'password';
+  if (togglePinVisibility) {
+    togglePinVisibility.addEventListener('click', () => {
+      const isHidden = pinInputs[0].type === 'password';
+      pinInputs.forEach(input => {
+        input.type = isHidden ? 'text' : 'password';
+      });
+      pinVisibilityIcon.textContent = isHidden ? 'visibility' : 'visibility_off';
     });
-    pinVisibilityIcon.textContent = isHidden ? 'visibility' : 'visibility_off';
-  });
+  }
 
   // Confirm purchase
   confirmPurchaseBtn.addEventListener('click', () => {
@@ -1427,13 +1429,15 @@ function initializeEventListeners() {
   });
 
   // Sell PIN visibility toggle
-  sellTogglePinVisibility.addEventListener('click', () => {
-    const isHidden = sellPinInputs[0].type === 'password';
-    sellPinInputs.forEach(input => {
-      input.type = isHidden ? 'text' : 'password';
+  if (sellTogglePinVisibility) {
+    sellTogglePinVisibility.addEventListener('click', () => {
+      const isHidden = sellPinInputs[0].type === 'password';
+      sellPinInputs.forEach(input => {
+        input.type = isHidden ? 'text' : 'password';
+      });
+      sellPinVisibilityIcon.textContent = isHidden ? 'visibility' : 'visibility_off';
     });
-    sellPinVisibilityIcon.textContent = isHidden ? 'visibility' : 'visibility_off';
-  });
+  }
 
   // Confirm sell
   confirmSellBtn.addEventListener('click', () => {
