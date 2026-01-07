@@ -6,7 +6,11 @@ $pageTitle = "Learning Center";
 
 // --- Learning Content Pagination ---
 $itemsPerPage = 6;
-$currentPage = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+if (isset($_GET['page']) && is_numeric($_GET['page']) && $_GET['page'] > 0) {
+    $currentPage = (int)$_GET['page'];
+} else {
+    $currentPage = 1;
+}
 $offset = ($currentPage - 1) * $itemsPerPage;
 
 // Fetch public learning content with pagination

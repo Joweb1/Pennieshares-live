@@ -189,8 +189,11 @@ if (php_sapi_name() !== 'cli') {
             </header>
             <main class="flex-grow flex flex-col justify-center items-center">
                 <div class="text-center">
-                    <p class="text-lg" style="color: var(--secondary-text);">Enter PIN to confirm deposit of</p>
+                    <p class="text-lg" style="color: var(--secondary-text);">You are depositing</p>
                     <p id="confirmAmountText" class="text-xl font-bold mb-2"></p>
+                    <p id="confirmNairaEquivalent" class="text-sm" style="color: var(--secondary-text);"></p>
+                    <p class="text-lg mt-4" style="color: var(--secondary-text);">Total amount to pay (NGN)</p>
+                    <p id="totalPayAmountText" class="text-2xl font-bold mb-2 text-primary-accent"></p>
                     <div class="my-4 flex justify-center">
                         <div class="flex space-x-2">
                             <input type="password" maxlength="1" class="w-12 h-12 text-center text-2xl font-bold rounded-lg border focus:outline-none focus:ring-2" style="background-color: var(--surface); border-color: var(--border); --tw-ring-color: var(--primary-accent);" readonly>
@@ -263,6 +266,8 @@ if (php_sapi_name() !== 'cli') {
         const formAmountInput = document.getElementById('form_amount_sv');
         const formPinInput = document.getElementById('form_pin');
         const confirmAmountText = document.getElementById('confirmAmountText');
+        const confirmNairaEquivalent = document.getElementById('confirmNairaEquivalent');
+        const totalPayAmountText = document.getElementById('totalPayAmountText');
 
         let currentAmount = "0";
         let currentPin = "";
@@ -329,6 +334,9 @@ if (php_sapi_name() !== 'cli') {
             pinStep.style.display = 'flex';
             formAmountInput.value = currentAmount;
             confirmAmountText.textContent = `SV ${parseFloat(currentAmount).toLocaleString()}`;
+            const nairaValueForDeposit = parseFloat(currentAmount) * SV_TO_NAIRA_RATE;
+            confirmNairaEquivalent.textContent = `₦${nairaValueForDeposit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Deposit Value)`;
+            totalPayAmountText.textContent = 'Calculating...'; // Placeholder until actual calculation is received
         });
 
         backToAmountStepBtn.addEventListener('click', () => {
@@ -336,6 +344,7 @@ if (php_sapi_name() !== 'cli') {
             amountStep.style.display = 'flex';
             currentPin = "";
             updatePinDisplay();
+            totalPayAmountText.textContent = ''; // Clear total pay amount when going back
         });
         
         confirmBtn.addEventListener('click', async (e) => {
@@ -370,11 +379,15 @@ if (php_sapi_name() !== 'cli') {
                         amountStep.style.display = 'flex';
                         currentPin = "";
                         updatePinDisplay();
+                        totalPayAmountText.textContent = ''; // Clear total pay amount on error
                         // Reset confirm button
                         confirmBtn.disabled = false;
                         confirmBtn.innerHTML = 'Confirm';
                     }, delay);
                 } else if (data.status === 'success' && data.paystack_data) {
+                    const finalNairaAmount = data.paystack_data.final_naira_amount;
+                    totalPayAmountText.textContent = `₦${finalNairaAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
                     // Initialize and open Paystack inline script
                     const handler = PaystackPop.setup({
                         key: data.paystack_data.key,
@@ -402,6 +415,7 @@ if (php_sapi_name() !== 'cli') {
                     amountStep.style.display = 'flex';
                     currentPin = "";
                     updatePinDisplay();
+                    totalPayAmountText.textContent = ''; // Clear total pay amount on error
                     confirmBtn.disabled = false;
                     confirmBtn.innerHTML = 'Confirm';
                 }, 0); // No delay for unexpected errors

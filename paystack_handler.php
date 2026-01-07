@@ -37,8 +37,12 @@ if ($svAmount > 200) {
     exit;
 }
 
-// 3. Prepare data for Paystack
-$nairaAmount = $svAmount * 100 * 100; // Amount in kobo
+// 3. Calculate final amount with Paystack fees
+$nairaAmount = $svAmount * 100;
+$finalNairaAmount = ($nairaAmount + 100) / (1 - 0.015);
+$amountInKobo = round($finalNairaAmount * 100);
+
+// Prepare data for Paystack
 $email = $loggedInUser['email'];
 $reference = 'pns_' . uniqid() . '_' . $loggedInUser['id'];
 $callback_url = BASE_URL . '/add_money_callback'; 
@@ -51,16 +55,18 @@ $paystackPublicKey = $_ENV['PAYSTACK_PUBLIC_KEY'];
 $paystack_data = [
     'key' => $paystackPublicKey,
     'email' => $email,
-    'amount' => $nairaAmount,
+    'amount' => $amountInKobo,
     'currency' => 'NGN',
     'ref' => $reference,
     'callback_url' => $callback_url,
     // Store metadata to be verified in callback
     'metadata' => [
         'user_id' => $loggedInUser['id'],
-        'sv_amount' => $svAmount,
+        'sv_amount' => $svAmount, // The original amount the user wants to receive
         'reference' => $reference
-    ]
+    ],
+    'final_naira_amount' => round($finalNairaAmount, 2), // Add the final Naira amount with fees
+    'sv_amount_requested' => $svAmount // Add the original SV amount requested
 ];
 
 header('Content-Type: application/json');
