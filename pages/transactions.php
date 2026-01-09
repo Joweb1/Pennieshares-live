@@ -641,7 +641,7 @@ require_once __DIR__ . '/../assets/template/intro-template.php';
             document.body.style.overflow = 'hidden'; // Prevent main page scrolling
 
             try {
-                const response = await fetch('./api/generate_transaction_history'); // Removed limit parameter
+                const response = await fetch(baseUrl+'/api/generate_transaction_history.php'); // Removed limit parameter
                 const data = await response.json();
 
                 if (data.html) {

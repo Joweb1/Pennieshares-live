@@ -7,6 +7,7 @@ check_auth();
 $currentUser = $_SESSION['user'];
 $loggedInUserId = $currentUser['id'];
 
+
 // Check KYC status
 $kyc_status = getKycStatus($loggedInUserId);
 if (!$kyc_status || $kyc_status['status'] !== 'verified') {
@@ -90,7 +91,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         header("Location: transfer"); // Redirect after final processing
         exit();
-    } elseif (isset($_POST['action']) && $_POST['action'] === 'toggle_favorite') {
+    } elseif (isset($_POST['action']) && $_POST['action'] === 'withdraw_from_wallet') {
+        $withdrawalDetails = $_SESSION['withdrawal_details'] ?? null;
+        $pin = trim($_POST['transaction_pin'] ?? '');
+
+        if (!$withdrawalDetails || empty($pin)) {
+            $_SESSION['transfer_message'] = "Invalid withdrawal details. Please try again.";
+            $_SESSION['transfer_status'] = 'error';
+        } else {
+            $withdrawalResult = handleWithdrawal($loggedInUserId, $withdrawalDetails, $pin);
+
+            if ($withdrawalResult['success']) {
+            } else {
+                $_SESSION['transfer_message'] = $withdrawalResult['message'];
+                $_SESSION['transfer_status'] = 'error';
+            }
+        }
+        
+            // Clean up session
+            unset($_SESSION['withdrawal_details'], $_SESSION['current_action']);
+        
+            session_write_close();
+            header("Location: transfer");
+            exit();    } elseif (isset($_POST['action']) && $_POST['action'] === 'toggle_favorite') {
         $brokerId = filter_input(INPUT_POST, 'broker_id', FILTER_VALIDATE_INT);
         if ($brokerId) {
             $success = toggleFavoriteBroker($loggedInUserId, $brokerId);
@@ -113,6 +136,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit();
     } elseif (isset($_POST['action']) && $_POST['action'] === 'go_back_to_step2') {
         unset($_SESSION['transfer_amount'], $_SESSION['transfer_remark']);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => true]);
+        exit();
+    } elseif (isset($_POST['action']) && $_POST['action'] === 'prepare_withdrawal') {
+        header('Content-Type: application/json');
+        $amount = (float)($_POST['withdrawal_amount'] ?? 0);
+        $bankName = trim(htmlspecialchars($_POST['bank_name'] ?? ''));
+        $accountNumber = trim(htmlspecialchars($_POST['account_number'] ?? ''));
+        $accountName = trim(htmlspecialchars($_POST['account_name'] ?? ''));
+
+        if ($amount === false || $amount <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Please enter a valid amount.']);
+            exit;
+        }
+
+        if ($amount > $currentUser['wallet_balance']) {
+            echo json_encode(['success' => false, 'message' => 'Insufficient funds.']);
+            exit;
+        }
+
+        if (empty($bankName) || empty($accountNumber) || empty($accountName)) {
+            echo json_encode(['success' => false, 'message' => 'Please fill in all bank details.']);
+            exit;
+        }
+
+        $_SESSION['withdrawal_details'] = [
+            'amount' => $amount,
+            'bank_name' => $bankName,
+            'account_number' => $accountNumber,
+            'account_name' => $accountName
+        ];
+        
+        $_SESSION['current_action'] = 'withdrawal';
+
+        echo json_encode(['success' => true]);
+        exit();
+    } elseif (isset($_POST['action']) && $_POST['action'] === 'clear_infinite_loader') {
+        unset($_SESSION['show_infinite_loader']);
         header('Content-Type: application/json');
         echo json_encode(['success' => true]);
         exit();
@@ -229,21 +290,23 @@ require_once __DIR__ . '/../assets/template/intro-template.php';
         flex-direction:column;
         border-radius: 24px;
         padding: 2.5rem;
-        margin:0 !important;
+        margin:1rem;
         width: 100%;
-        max-width: 580px;
-        text-align: center;
-        transform: scale(0.9);
+        max-width: 480px;
+        transform: scale(0.95);
         transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
+    #withdrawalModal .purchase-modal-content {
+        text-align: left;
+    }
     html[data-theme="light"] .purchase-modal-content {
-        background: rgba(255, 255, 255, 0.75);
-        border: 1px solid rgba(255, 255, 255, 1);
-        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+        background: #F9FAFB;
+        border: 1px solid #E5E7EB;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
     }
     html[data-theme="dark"] .purchase-modal-content {
-         background: rgba(30, 41, 59, 0.6);
-         border: 1px solid rgba(255, 255, 255, 0.15);
+         background: #1F2937;
+         border: 1px solid #374151;
     }
     .modal-state { display: none; }
     .modal-state.active { display: block; }
@@ -372,8 +435,62 @@ require_once __DIR__ . '/../assets/template/intro-template.php';
         height: 24px;
         animation: spin 1s linear infinite;
     }
-</style>
 
+    .new-processing-animation .loader {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        display: inline-block;
+        position: relative;
+        border: 3px solid;
+        border-color: #FFF #FFF transparent transparent;
+        box-sizing: border-box;
+        animation: rotation 1s linear infinite;
+        margin: 0 auto;
+    }
+    .new-processing-animation .loader::after,
+    .new-processing-animation .loader::before {
+        content: '';  
+        box-sizing: border-box;
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        margin: auto;
+        border: 3px solid;
+        border-color: transparent transparent #10B981 #10B981;
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        box-sizing: border-box;
+        animation: rotationBack 0.5s linear infinite;
+        transform-origin: center center;
+    }
+    .new-processing-animation .loader::before {
+        width: 60px;
+        height: 60px;
+        border-color: #FFF #FFF transparent transparent;
+        animation: rotation 1.5s linear infinite;
+    }
+        
+    @keyframes rotation {
+        0% {
+            transform: rotate(0deg);
+        }
+        100% {
+            transform: rotate(360deg);
+        }
+    } 
+    @keyframes rotationBack {
+        0% {
+            transform: rotate(0deg);
+        }
+        100% {
+            transform: rotate(-360deg);
+        }
+    }
+</style>
 <div class="container mx-auto p-2 max-w-md">
     <?php if ($transferStep === 1): ?>
         <!-- Step 1: Enter Broker Partner Code -->
@@ -463,7 +580,11 @@ require_once __DIR__ . '/../assets/template/intro-template.php';
                 </div>
             </div>
             <div class="container mx-auto p-4 max-w-md mt-auto">
-                <button type="submit" class="w-full bg-primary text-white font-bold py-3 rounded-lg">Continue</button>
+                <button type="button" id="withdrawToBankBtn" class="w-full bg-primary text-white font-bold py-3 rounded-lg mb-3 flex items-center justify-center">
+                    <span class="material-icons mr-2">account_balance</span>
+                    <span>Withdraw to Bank</span>
+                </button>
+                <button type="submit" class="w-full bg-gray-200 dark:bg-gray-700 text-text-primary-light dark:text-text-primary-dark font-bold py-3 rounded-lg">Continue to P2P</button>
             </div>
         </form>
     <?php elseif ($transferStep === 2): ?>
@@ -594,6 +715,57 @@ require_once __DIR__ . '/../assets/template/intro-template.php';
     </div>
 </div>
 
+<!-- Withdrawal Modal -->
+<div id="withdrawalModal" class="purchase-modal-overlay">
+    <div class="purchase-modal-content">
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h2 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">Withdraw Funds</h2>
+                <p class="text-sm text-text-secondary-light dark:text-text-secondary-dark">Enter withdrawal details below.</p>
+            </div>
+            <button id="closeWithdrawalModal" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">
+                <span class="material-icons text-text-secondary-light dark:text-text-secondary-dark">close</span>
+            </button>
+        </div>
+        <form id="withdrawalForm" class="space-y-4">
+            <div>
+                <label for="withdrawal_amount" class="block text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark mb-1">Amount</label>
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-lg font-bold text-text-primary-light dark:text-text-primary-dark">SV</span>
+                    <input type="number" step="0.01" id="withdrawal_amount" name="withdrawal_amount" class="w-full bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg py-3 pl-10 pr-4 text-text-primary-light dark:text-text-primary-dark placeholder-text-secondary-light dark:placeholder-text-secondary-dark focus:ring-2 focus:ring-primary" placeholder="0.00" required>
+                </div>
+                 <p id="amount-error" class="text-xs text-red-500 mt-1 hidden"></p>
+            </div>
+            <div>
+                <label for="bank_code" class="block text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark mb-1">Bank Name</label>
+                <div class="relative">
+                    <select id="bank_code" name="bank_code" class="w-full उपस्थिति-none bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg py-3 px-4 text-text-primary-light dark:text-text-primary-dark focus:ring-2 focus:ring-primary" required>
+                        <option value="">Loading banks...</option>
+                    </select>
+                    <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                        <span class="material-icons text-text-secondary-light dark:text-text-secondary-dark">unfold_more</span>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <label for="account_number" class="block text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark mb-1">Account Number</label>
+                <input type="text" id="account_number" name="account_number" pattern="\d{10}" title="10-digit account number" class="w-full bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg py-3 px-4 text-text-primary-light dark:text-text-primary-dark placeholder-text-secondary-light dark:placeholder-text-secondary-dark focus:ring-2 focus:ring-primary" placeholder="Enter 10-digit account number" required>
+            </div>
+            <div>
+                <label for="account_name" class="block text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark mb-1">Account Name</label>
+                <input type="text" id="account_name" name="account_name" class="w-full bg-gray-200 dark:bg-gray-700 border border-border-light dark:border-border-dark rounded-lg py-3 px-4 text-text-primary-light dark:text-text-primary-dark" placeholder="Resolving account name..." readonly required>
+                 <p id="account-name-error" class="text-xs text-red-500 mt-1 hidden"></p>
+            </div>
+            <div class="pt-4">
+                <button type="submit" id="submitWithdrawalBtn" class="w-full bg-primary text-white font-bold py-3 rounded-lg flex items-center justify-center transition hover:bg-primary/90 disabled:bg-gray-400" disabled>
+                     <span class="button-text">Proceed</span>
+                     <span class="loading-spinner" style="display: none;"></span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Status Modal -->
 <div class="purchase-modal-overlay" id="statusModal">
     <div class="purchase-modal-content">
@@ -635,8 +807,30 @@ require_once __DIR__ . '/../assets/template/intro-template.php';
     </div>
 </div>
 
+<!-- Infinite Loading Overlay -->
+<div id="infiniteLoaderOverlay" class="purchase-modal-overlay" style="background-color: rgba(0, 0, 0, 0.85); z-index: 2000;">
+    <div class="purchase-modal-content text-center" style="background: transparent; border: none; box-shadow: none;">
+        <div class="new-processing-animation">
+            <div class="loader"></div>
+        </div>
+        <h3 class="modal-title" style="font-size: 1.5rem; margin-top: 2rem; color: white;">Processing...</h3>
+        <p class="modal-text" style="font-size: 1rem; max-width: 300px; margin: 0.5rem auto 0;">This might take a few minutes. Please do not leave this page.</p>
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+    const infiniteLoader = document.getElementById('infiniteLoaderOverlay');
+
+    if (localStorage.getItem('show_infinite_loader') === 'true' && infiniteLoader) {
+        infiniteLoader.classList.add('visible');
+    }
+    
+    // Stop other scripts if the loader is showing
+    if (localStorage.getItem('show_infinite_loader') === 'true') {
+        return;
+    }
+
     function applyTheme(theme) {
         if (theme === 'dark') {
             document.documentElement.classList.add('dark');
@@ -769,6 +963,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (transferForm) {
         transferForm.addEventListener('submit', function() {
             if (transactionPinHidden.value.length === 4) {
+                const formAction = this.querySelector('input[name="action"]').value;
+                if (formAction === 'withdraw_from_wallet') {
+                    localStorage.setItem('show_infinite_loader', 'true');
+                }
                 confirmTransferBtn.disabled = true;
                 confirmTransferBtn.querySelector('.button-text').style.display = 'none';
                 confirmTransferBtn.querySelector('.loading-spinner').style.display = 'block';
@@ -906,10 +1104,209 @@ document.addEventListener('DOMContentLoaded', () => {
             window.location.href = 'transfer'; 
         });
     });
+
+    const currentUserWalletBalance = <?php echo json_encode($currentUser['wallet_balance'] ?? 0); ?>;
+    
+    // --- New Withdrawal Flow ---
+    const withdrawToBankBtn = document.getElementById('withdrawToBankBtn');
+    const withdrawalModal = document.getElementById('withdrawalModal');
+    const closeWithdrawalModal = document.getElementById('closeWithdrawalModal');
+    const withdrawalForm = document.getElementById('withdrawalForm');
+    const bankListSelect = document.getElementById('bank_code');
+    const accountNumberInput = document.getElementById('account_number');
+    const accountNameInput = document.getElementById('account_name');
+    const accountNameError = document.getElementById('account-name-error');
+    const submitWithdrawalBtn = document.getElementById('submitWithdrawalBtn');
+
+    async function fetchBankList() {
+        try {
+            const response = await fetch('pages/api/get_banks.php');
+            const banks = await response.json();
+            
+            if (banks && banks.length) {
+                bankListSelect.innerHTML = '<option value="">Select your bank</option>';
+                banks.sort((a, b) => a.name.localeCompare(b.name)); // Sort banks alphabetically
+                banks.forEach(bank => {
+                    const option = new Option(`${bank.name}`, bank.code);
+                    bankListSelect.add(option);
+                });
+            } else {
+                bankListSelect.innerHTML = '<option value="">Could not load banks</option>';
+            }
+        } catch (error) {
+            console.error('Failed to fetch bank list:', error);
+            bankListSelect.innerHTML = '<option value="">Could not load banks</option>';
+        }
+    }
+
+    let resolveTimeout;
+    async function resolveBankAccount() {
+        const bankCode = bankListSelect.value;
+        const accountNumber = accountNumberInput.value;
+
+        if (!bankCode || accountNumber.length !== 10) {
+            accountNameInput.value = '';
+            accountNameInput.placeholder = 'Resolving account name...';
+            accountNameError.classList.add('hidden');
+            submitWithdrawalBtn.disabled = true;
+            return;
+        }
+        
+        accountNameInput.value = '';
+        accountNameInput.placeholder = 'Resolving...';
+        accountNameError.classList.add('hidden');
+        submitWithdrawalBtn.disabled = true;
+        
+        clearTimeout(resolveTimeout);
+        resolveTimeout = setTimeout(async () => {
+            try {
+                // Since we are not using a real API, we will just use the dummy one.
+                const response = await fetch(`pages/api/resolve_account.php?account_number=${accountNumber}&bank_code=${bankCode}`);
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    accountNameInput.value = result.data.account_name;
+                    accountNameError.classList.add('hidden');
+                    submitWithdrawalBtn.disabled = false; // Enable submit button
+                } else {
+                    accountNameInput.value = '';
+                    accountNameInput.placeholder = 'Could not resolve account';
+                    accountNameError.textContent = result.message || 'Invalid account details.';
+                    accountNameError.classList.remove('hidden');
+                    submitWithdrawalBtn.disabled = true; // Keep disabled
+                }
+            } catch (error) {
+                console.error('Error resolving account:', error);
+                accountNameInput.value = '';
+                accountNameInput.placeholder = 'Error resolving account';
+                accountNameError.textContent = 'A network error occurred.';
+                accountNameError.classList.remove('hidden');
+                submitWithdrawalBtn.disabled = true;
+            }
+        }, 500); // Debounce for 500ms
+    }
+
+    if (withdrawToBankBtn) {
+        withdrawToBankBtn.addEventListener('click', () => {
+            if (withdrawalModal) {
+                // Reset form state
+                withdrawalForm.reset();
+                accountNameInput.value = '';
+                accountNameInput.placeholder = 'Resolving account name...';
+                accountNameError.classList.add('hidden');
+                submitWithdrawalBtn.disabled = true;
+                document.getElementById('amount-error').classList.add('hidden');
+                
+                fetchBankList(); // Fetch banks when modal is opened
+                withdrawalModal.classList.add('visible');
+            }
+        });
+    }
+    
+    if(bankListSelect && accountNumberInput) {
+        bankListSelect.addEventListener('change', resolveBankAccount);
+        accountNumberInput.addEventListener('input', resolveBankAccount);
+    }
+
+    if (closeWithdrawalModal) {
+        closeWithdrawalModal.addEventListener('click', () => {
+            if (withdrawalModal) {
+                withdrawalModal.classList.remove('visible');
+            }
+        });
+    }
+
+    if (withdrawalForm) {
+        const withdrawalAmountInput = document.getElementById('withdrawal_amount');
+        const amountError = document.getElementById('amount-error');
+
+        withdrawalForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const amount = parseFloat(withdrawalAmountInput.value);
+            if (isNaN(amount) || amount <= 0) {
+                amountError.textContent = 'Please enter a valid amount.';
+                amountError.classList.remove('hidden');
+                return;
+            }
+            if (amount > currentUserWalletBalance) {
+                amountError.textContent = 'Amount exceeds your wallet balance of SV ' + currentUserWalletBalance.toFixed(2);
+                amountError.classList.remove('hidden');
+                return;
+            }
+            amountError.classList.add('hidden');
+
+            const buttonText = submitWithdrawalBtn.querySelector('.button-text');
+            const loadingSpinner = submitWithdrawalBtn.querySelector('.loading-spinner');
+
+            buttonText.style.display = 'none';
+            loadingSpinner.style.display = 'block';
+            submitWithdrawalBtn.disabled = true;
+
+            //We need to get the bank name from the select list to pass to the backend
+            const bankName = bankListSelect.options[bankListSelect.selectedIndex].text;
+            
+            const formData = new FormData(withdrawalForm);
+            formData.append('action', 'prepare_withdrawal');
+            formData.set('bank_name', bankName); // Add bank name to form data
+
+            try {
+                const response = await fetch('transfer', {
+                    method: 'POST',
+                    body: new URLSearchParams(formData)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Hide withdrawal modal
+                    withdrawalModal.classList.remove('visible');
+                    
+                    // --- Configure and show PIN modal for withdrawal ---
+                    const pinModal = document.getElementById('pinModal');
+                    const pinModalTitle = pinModal.querySelector('.modal-title');
+                    const pinModalTexts = pinModal.querySelectorAll('.modal-text');
+                    const transferForm = document.getElementById('transferForm');
+                    const formActionInput = transferForm.querySelector('input[name="action"]');
+                    const confirmBtnText = document.getElementById('confirmTransferBtn').querySelector('.button-text');
+
+                    pinModalTitle.textContent = 'Confirm Withdrawal';
+                    pinModalTexts[0].textContent = 'Enter PIN to confirm withdrawal of';
+                    pinModalTexts[1].innerHTML = `<strong id="confirmAmountPin" class="text-lg">SV ${parseFloat(amount).toFixed(2)}</strong> to your bank account`;
+                    
+                    formActionInput.value = 'withdraw_from_wallet';
+                    confirmBtnText.textContent = 'Confirm Withdrawal';
+
+                    // Clear any previous PIN input
+                    const pinInputs = document.querySelectorAll('#pinDisplayContainer input');
+                    pinInputs.forEach(input => input.value = '');
+                    document.getElementById('transaction_pin_hidden').value = '';
+                    document.getElementById('confirmTransferBtn').disabled = true;
+                    
+                    pinModal.classList.add('visible');
+
+                } else {
+                    alert('Error: ' + (result.message || 'Could not prepare withdrawal.'));
+                }
+
+            } catch (error) {
+                console.error('Error preparing withdrawal:', error);
+                alert('An unexpected error occurred. Please try again.');
+            } finally {
+                buttonText.style.display = 'block';
+                // The button is re-enabled in the resolve account function
+            }
+        });
+
+        withdrawalAmountInput.addEventListener('input', () => {
+            const amount = parseFloat(withdrawalAmountInput.value);
+            if (amount > currentUserWalletBalance) {
+                amountError.textContent = 'Amount exceeds your wallet balance of SV ' + currentUserWalletBalance.toFixed(2);
+                amountError.classList.remove('hidden');
+            } else {
+                amountError.classList.add('hidden');
+            }
+        });
+    }
 });
 </script>
-
-<?php
-// Include the footer template
-require_once __DIR__ . '/../assets/template/end-template.php';
-?>

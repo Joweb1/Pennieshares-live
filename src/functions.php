@@ -1377,7 +1377,118 @@ function getUserDetailsByPartnerCode($partnerCode, $isBroker = false) {
     }
 }
 
+function getPaystackBankList() {
+    return getCached('paystack_bank_list', function() {
+        $paystackSecretKey = $_ENV['PAYSTACK_SECRET_KEY'];
+        if (empty($paystackSecretKey)) {
+            error_log("Paystack secret key is not configured.");
+            return false;
+        }
+
+        $url = "https://api.paystack.co/bank?country=nigeria";
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            "Authorization: Bearer " . $paystackSecretKey
+        ]);
+
+        $response = curl_exec($ch);
+        $error = curl_error($ch);
+        curl_close($ch);
+
+        if ($error) {
+            error_log("Paystack Bank List API cURL Error: " . $error);
+            return false;
+        }
+
+        $result = json_decode($response, true);
+
+        if (isset($result['status']) && $result['status'] == true) {
+            return $result['data'];
+        } else {
+            error_log("Paystack Bank List API Error: " . ($result['message'] ?? 'Unknown error'));
+            return false;
+        }
+    }, 86400); // Cache for 24 hours (86400 seconds)
+}
+
+function resolvePaystackBankAccount($accountNumber, $bankCode) {
+    $paystackSecretKey = $_ENV['PAYSTACK_SECRET_KEY'];
+    if (empty($paystackSecretKey)) {
+        return ['status' => 'error', 'message' => 'Paystack secret key is not configured.'];
+    }
+
+    $url = "https://api.paystack.co/bank/resolve?account_number=" . urlencode($accountNumber) . "&bank_code=" . urlencode($bankCode);
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        "Authorization: Bearer " . $paystackSecretKey
+    ]);
+
+    $response = curl_exec($ch);
+    $error = curl_error($ch);
+    curl_close($ch);
+
+    if ($error) {
+        error_log("Paystack Resolve API cURL Error: " . $error);
+        return ['status' => 'error', 'message' => 'Could not connect to payment service.'];
+    }
+
+    $result = json_decode($response, true);
+
+    if (isset($result['status']) && $result['status'] == true) {
+        return [
+            'status' => 'success',
+            'message' => 'Account number resolved',
+            'data' => [
+                'account_number' => $result['data']['account_number'],
+                'account_name' => $result['data']['account_name'],
+                'bank_id' => $result['data']['bank_id']
+            ]
+        ];
+    } else {
+        return [
+            'status' => 'error',
+            'message' => $result['message'] ?? 'Could not resolve account name.'
+        ];
+    }
+}
+
 // Modify transferWalletBalance to call addOrUpdateBrokerInteraction
+function handleWithdrawal($userId, $withdrawalDetails, $pin) {
+    global $pdo_mysql;
+
+    // 1. Verify transaction PIN
+    if (!verifyTransactionPin($userId, $pin)) {
+        return ['success' => false, 'message' => "Invalid transaction PIN."];
+    }
+
+    $amount = $withdrawalDetails['amount'];
+    if (!is_numeric($amount) || $amount <= 0) {
+        return ['success' => false, 'message' => "Invalid withdrawal amount."];
+    }
+
+    // 2. Debit the wallet
+    $description = sprintf(
+        "Withdrawal to %s (%s)",
+        $withdrawalDetails['bank_name'],
+        $withdrawalDetails['account_number']
+    );
+
+    $debitResult = debitUserWallet($userId, $amount, $description);
+
+    if ($debitResult) {
+        // The actual bank transfer via Paystack would happen here.
+        // For now, we just return success as per the instructions.
+        return ['success' => true, 'message' => "Withdrawal processed successfully."];
+    } else {
+        return ['success' => false, 'message' => "Failed to debit wallet. Insufficient funds or database error."];
+    }
+}
 function transferWalletBalance($senderId, $receiverId, $amount, $pin) {
     global $pdo_mysql;
     if (!is_numeric($amount) || $amount <= 0) {
@@ -1487,4 +1598,5 @@ function transferWalletBalance($senderId, $receiverId, $amount, $pin) {
     }
 }
 
-?>
+
+
