@@ -1303,7 +1303,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('An unexpected error occurred. Please try again.');
             } finally {
                 buttonText.style.display = 'block';
-                // The button is re-enabled in the resolve account function
+                loadingSpinner.style.display = 'none';
+                submitWithdrawalBtn.disabled = false; // Re-enable button
             }
         });
 
@@ -1317,6 +1318,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+});
 </script>
 <?php
 // Include the footer template
