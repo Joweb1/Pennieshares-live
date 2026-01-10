@@ -809,6 +809,7 @@ require_once __DIR__ . '/../assets/template/intro-template.php';
 
 <!-- Infinite Loading Overlay -->
 <div id="infiniteLoaderOverlay" class="purchase-modal-overlay" style="background-color: rgba(0, 0, 0, 0.85); z-index: 2000;">
+    <button id="closeInfiniteLoader" class="absolute top-4 right-4 text-white text-3xl">&times;</button>
     <div class="purchase-modal-content text-center" style="background: transparent; border: none; box-shadow: none;">
         <div class="new-processing-animation">
             <div class="loader"></div>
@@ -821,9 +822,17 @@ require_once __DIR__ . '/../assets/template/intro-template.php';
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const infiniteLoader = document.getElementById('infiniteLoaderOverlay');
+    const closeInfiniteLoaderBtn = document.getElementById('closeInfiniteLoader');
 
     if (localStorage.getItem('show_infinite_loader') === 'true' && infiniteLoader) {
         infiniteLoader.classList.add('visible');
+    }
+
+    if(closeInfiniteLoaderBtn && infiniteLoader) {
+        closeInfiniteLoaderBtn.addEventListener('click', async () => {
+            localStorage.removeItem('show_infinite_loader');
+            infiniteLoader.classList.remove('visible');
+        });
     }
     
     // Stop other scripts if the loader is showing
@@ -1308,5 +1317,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-});
 </script>
+<?php
+// Include the footer template
+require_once __DIR__ . '/../assets/template/end-template.php';
+?>
