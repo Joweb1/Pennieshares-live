@@ -3,7 +3,6 @@
 require_once __DIR__ . '/../src/functions.php';
 
 check_auth();
-processPendingProfits();
 
 // Get current user data
 $user = $_SESSION['user'];

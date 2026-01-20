@@ -65,7 +65,8 @@ try {
         last_performance_update DATE,
         transaction_pin VARCHAR(255),
         earnings_paused INT DEFAULT 0,
-        has_received_referral_bonus INT DEFAULT 0
+        has_received_referral_bonus INT DEFAULT 0,
+        INDEX (referral)
     )");
     echo "Created table: users\n";
 
