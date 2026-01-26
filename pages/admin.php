@@ -496,6 +496,16 @@ include __DIR__ . '/../assets/template/intro-template.php';
 ?>
 
 <style>
+    pre {
+        background-color: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 15px;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        font-family: monospace;
+        color: var(--text-secondary);
+    }
     /* General Styling */
     .admin-container {
         width: 95vw; /* Increased max-width for wider desktop view */
@@ -920,7 +930,8 @@ include __DIR__ . '/../assets/template/intro-template.php';
                     Scheduled (Cron) - Emails are added to a queue and sent by a cron job every minute.
                 </label>
             </div>
-            <p><strong>Note for Cron:</strong> You must set up a cron job on your server to run the following command every minute:<br><code>* * * * * php <?php echo realpath(__DIR__ . '/../cli/process_mail_queue.php'); ?></code></p>
+            <p><strong>Note for Cron:</strong> You must set up a cron job on your server to run the following command every minute:</p>
+            <pre><code>* * * * * php <?php echo realpath(__DIR__ . '/../cli/process_mail_queue.php'); ?></code></pre>
             <button type="submit">Save Mail Settings</button>
         </form>
     </div>

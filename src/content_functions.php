@@ -265,3 +265,30 @@ function getTotalContentCount(?string $type = null, ?string $status = null): int
         return 0;
     }
 }
+
+function uploadImage($file) {
+    if ($file['error'] !== UPLOAD_ERR_OK) {
+        return false;
+    }
+
+    $allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif'];
+    if (!in_array($file['type'], $allowedMimeTypes)) {
+        return false;
+    }
+
+    $uploadDir = 'uploads/content_banners/';
+    $absoluteUploadDir = __DIR__ . '/../' . $uploadDir;
+    if (!is_dir($absoluteUploadDir)) {
+        mkdir($absoluteUploadDir, 0755, true);
+    }
+
+    $newFileName = uniqid() . '-' . basename($file['name']);
+    $destination = $absoluteUploadDir . $newFileName;
+
+    if (move_uploaded_file($file['tmp_name'], $destination)) {
+        // Return the web-accessible path, relative to project root
+        return $uploadDir . $newFileName;
+    }
+
+    return false;
+}

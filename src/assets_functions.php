@@ -87,7 +87,7 @@ function getAncestorsForPayout($childAssetId, $maxDepth = MAX_GENERATIONS_PAYOUT
         $parentId = $stmt->fetchColumn();
 
         if ($parentId) {
-            $ancestorDetailsStmt = $pdo_mysql->prepare("
+            $ancestorDetailsStmt = $pdo_mysql->prepare(" 
                 SELECT a.id, a.user_id, a.asset_type_id, at.payout_cap, a.is_completed, a.is_manually_expired, a.expires_at, a.total_generational_received
                 FROM assets a
                 JOIN asset_types at ON a.asset_type_id = at.id
@@ -267,13 +267,10 @@ function buyAsset($userId, $assetTypeId, $numAssetsToBuy = 1) {
                     // Credit ancestor asset
                     $pdo_mysql->prepare("UPDATE assets SET total_generational_received = total_generational_received + ? WHERE id = ?")->execute([$payoutAmount, $ancestor['id']]);
 
-                    // Schedule fractional payouts
-                    $fractionalAmount = $payoutAmount / 5;
-                    for ($i = 0; $i < 5; $i++) {
-                        $creditAt = date('Y-m-d H:i:s', time() + mt_rand(1, 72 * 3600));
-                        $pdo_mysql->prepare("INSERT INTO pending_profits (user_id, receiving_asset_id, fractional_amount, payout_type, credit_at) VALUES (?, ?, ?, ?, ?)")
-                            ->execute([$ancestor['user_id'], $ancestor['id'], $fractionalAmount, 'generational', $creditAt]);
-                    }
+                    // Schedule the full payout
+                    $creditAt = date('Y-m-d H:i:s', time() + mt_rand(1, 72 * 3600));
+                    $pdo_mysql->prepare("INSERT INTO pending_profits (user_id, receiving_asset_id, fractional_amount, payout_type, credit_at) VALUES (?, ?, ?, ?, ?)")
+                        ->execute([$ancestor['user_id'], $ancestor['id'], $payoutAmount, 'generational', $creditAt]);
 
                     // Log payout
                     $pdo_mysql->prepare("INSERT INTO payouts (receiving_asset_id, triggering_asset_id, amount, payout_type, created_at) VALUES (?, ?, ?, ?, ?)")
@@ -302,18 +299,15 @@ function buyAsset($userId, $assetTypeId, $numAssetsToBuy = 1) {
         if ($numActiveAssets > 0) {
             $fractionalSharedPayout = SHARED_POT_ALLOCATION / $numActiveAssets;
             foreach ($activeAssets as $activeAsset) {
-            if($activeAsset['is_completed'] == 0 || $activeAsset['is_manually_expired'] == 0){
-               // Credit asset's total_shared_received
-                $pdo_mysql->prepare("UPDATE assets SET total_shared_received = total_shared_received + ? WHERE id = ?")->execute([$fractionalSharedPayout, $activeAsset['id']]);
-                // Schedule fractional payouts
-                $fractionalAmount = $fractionalSharedPayout / 4;
-                for ($i = 0; $i < 4; $i++) {
+                if($activeAsset['is_completed'] == 0 || $activeAsset['is_manually_expired'] == 0){
+                    // Credit asset's total_shared_received
+                    $pdo_mysql->prepare("UPDATE assets SET total_shared_received = total_shared_received + ? WHERE id = ?")->execute([$fractionalSharedPayout, $activeAsset['id']]);
+                    
+                    // Schedule the full shared payout
                     $creditAt = date('Y-m-d H:i:s', time() + mt_rand(1, 72 * 3600));
                     $pdo_mysql->prepare("INSERT INTO pending_profits (user_id, receiving_asset_id, fractional_amount, payout_type, credit_at) VALUES (?, ?, ?, ?, ?)")
-                        ->execute([$activeAsset['user_id'], $activeAsset['id'], $fractionalAmount, 'shared', $creditAt]);
-                        }
+                        ->execute([$activeAsset['user_id'], $activeAsset['id'], $fractionalSharedPayout, 'shared', $creditAt]);
                 }
-
                 $currentPurchaseResult['shared_payouts_log'][] = "Asset #{$activeAsset['id']} received ₦" . number_format($fractionalSharedPayout, 2) . " (Shared).";
             }
         } else {
@@ -365,7 +359,7 @@ function buyAsset($userId, $assetTypeId, $numAssetsToBuy = 1) {
 function getUserAssets($userId) {
     global $pdo_mysql;
     $now = date('Y-m-d H:i:s');
-    $stmt = $pdo_mysql->prepare("
+    $stmt = $pdo_mysql->prepare(" 
         SELECT a.*, at.name as asset_type_name, at.price as asset_price, at.payout_cap as type_payout_cap, at.image_link,
                (a.total_generational_received + a.total_shared_received) as total_earned,
                CASE 
@@ -387,7 +381,7 @@ function getUserAssets($userId) {
 function getUserAssetsWorth($userId) {
     global $pdo_mysql;
     $now = date('Y-m-d H:i:s');
-    $stmt = $pdo_mysql->prepare("
+    $stmt = $pdo_mysql->prepare(" 
         SELECT SUM(at.payout_cap) 
         FROM assets a
         JOIN asset_types at ON a.asset_type_id = at.id
@@ -403,7 +397,7 @@ function getUserAssetsWorth($userId) {
 function getGroupedUserAssets($userId) {
     global $pdo_mysql;
     $now = date('Y-m-d H:i:s');
-    $stmt = $pdo_mysql->prepare("
+    $stmt = $pdo_mysql->prepare(" 
         SELECT 
             at.id as asset_type_id,
             at.name as asset_type_name,
@@ -431,7 +425,7 @@ function getUserPayouts($userId) {
     global $pdo_mysql;
     
     // Step 1: Get payouts from MySQL (was SQLite)
-    $stmt = $pdo_mysql->prepare("
+    $stmt = $pdo_mysql->prepare(" 
         SELECT p.*, ta.user_id as triggering_user_id, ta.id as triggering_asset_display_id
         FROM payouts p
         JOIN assets ra ON p.receiving_asset_id = ra.id
@@ -467,7 +461,7 @@ function getUserPayouts($userId) {
 function getOverallIncomeStats() {
     global $pdo_mysql;
     $companyFunds = getCompanyFunds();
-    $payoutsTotals = $pdo_mysql->query("
+    $payoutsTotals = $pdo_mysql->query(" 
         SELECT 
             SUM(CASE WHEN payout_type = 'generational' THEN amount ELSE 0 END) as total_generational,
             SUM(CASE WHEN payout_type = 'shared' THEN amount ELSE 0 END) as total_shared
@@ -485,15 +479,16 @@ function getOverallIncomeStats() {
 function getAssetStatusDistribution() {
     global $pdo_mysql;
     $now = date('Y-m-d H:i:s');
-    $stmt = $pdo_mysql->prepare("
+    $sql = " 
         SELECT 
-            SUM(CASE WHEN is_sold = 1 THEN 1 ELSE 0 END) as sold_count,
-            SUM(CASE WHEN is_completed = 1 AND is_sold = 0 THEN 1 ELSE 0 END) as completed_count,
-            SUM(CASE WHEN is_completed = 0 AND is_sold = 0 AND (is_manually_expired = 1 OR (expires_at IS NOT NULL AND expires_at < :now)) THEN 1 ELSE 0 END) as expired_count,
-            SUM(CASE WHEN is_completed = 0 AND is_sold = 0 AND is_manually_expired = 0 AND (expires_at IS NULL OR expires_at >= :now) THEN 1 ELSE 0 END) as active_count
+            SUM(IF(is_sold = 1, 1, 0)) as sold_count,
+            SUM(IF(is_completed = 1 AND is_sold = 0, 1, 0)) as completed_count,
+            SUM(IF(is_completed = 0 AND is_sold = 0 AND (is_manually_expired = 1 OR (expires_at IS NOT NULL AND expires_at < ?)), 1, 0)) as expired_count,
+            SUM(IF(is_completed = 0 AND is_sold = 0 AND is_manually_expired = 0 AND (expires_at IS NULL OR expires_at >= ?), 1, 0)) as active_count
         FROM assets
-    ");
-    $stmt->execute([':now' => $now]);
+    ";
+    $stmt = $pdo_mysql->prepare($sql);
+    $stmt->execute([$now, $now]);
     return $stmt->fetch(PDO::FETCH_ASSOC);
 }
 
@@ -780,8 +775,8 @@ function getAssetTypeStats($assetTypeId, $range) {
         $data = $stmt->fetchAll(PDO::FETCH_NUM);
     } else {
         // Aggregate to daily OHLC for longer ranges
-        $stmt = $pdo_mysql->prepare("
-            SELECT
+        $stmt = $pdo_mysql->prepare(" 
+            SELECT 
                 UNIX_TIMESTAMP(DATE(FROM_UNIXTIME(timestamp / 1000))) * 1000 as day_timestamp,
                 AVG(open_price) as open_p,
                 MAX(high_price) as high_p,
@@ -962,7 +957,6 @@ function sellCompletedAsset($userId, $assetId, $pin) {
 
 
 
-
 function deleteAssetType($assetTypeId) {
     global $pdo_mysql;
     try {
@@ -1100,4 +1094,3 @@ function generateStatsForExistingAssets() {
     }
     return $generatedCount;
 }
-

@@ -171,7 +171,8 @@ try {
         completed_at DATETIME,
         sale_status TEXT,
         FOREIGN KEY(asset_type_id) REFERENCES asset_types(id) ON DELETE CASCADE,
-        FOREIGN KEY(parent_id) REFERENCES assets(id) ON DELETE SET NULL
+        FOREIGN KEY(parent_id) REFERENCES assets(id) ON DELETE SET NULL,
+        INDEX (user_id)
     );");
     echo "Created table: assets\n";
 
@@ -202,7 +203,8 @@ try {
         type TEXT NOT NULL,
         amount DECIMAL(10, 2) NOT NULL,
         description TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX (user_id, type(255))
     )");
     echo "Created table: wallet_transactions\n";
 

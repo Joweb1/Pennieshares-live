@@ -40,10 +40,11 @@ try {
 
     echo "Found " . count($jobs) . " emails to process.\n";
 
+    $successfulJobs = 0;
+    $failedJobs = 0;
+
     foreach ($jobs as $job) {
         $jobId = $job['id'];
-        echo "Processing job #{$jobId}... ";
-
         // 2. Mark as processing
         $updateStmt = $pdo_mysql->prepare("UPDATE email_queue SET status = 'processing', attempts = attempts + 1, processed_at = NOW() WHERE id = ?");
         $updateStmt->execute([$jobId]);
@@ -55,18 +56,19 @@ try {
         if ($success) {
             $finalStmt = $pdo_mysql->prepare("UPDATE email_queue SET status = 'sent' WHERE id = ?");
             $finalStmt->execute([$jobId]);
-            echo "SUCCESS.\n";
+            $successfulJobs++;
         } else {
             $finalStmt = $pdo_mysql->prepare("UPDATE email_queue SET status = 'failed', error_message = 'Mailer failed to send' WHERE id = ?");
             $finalStmt->execute([$jobId]);
-            echo "FAILED.\n";
+            $failedJobs++;
         }
         
         // Optional: sleep for a short duration to avoid overwhelming the mail server
         sleep(1);
     }
 
-    echo "Email queue processing finished.\n";
+    echo "Finished processing email queue.\n";
+    echo "Summary: {$successfulJobs} successful, {$failedJobs} failed.\n";
 
 } catch (Exception $e) {
     error_log("Cron job (process_mail_queue.php) failed: " . $e->getMessage());

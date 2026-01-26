@@ -117,9 +117,95 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
-
 ?>
+<style>
+    #editor-container {
+        position: relative;
+    }
+    #toolbar {
+        position: sticky;
+        top: 0;
+    }
+    .editor-btn {
+        background-color: #f0f0f0;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        cursor: pointer;
+        padding: 5px 10px;
+        min-width: 30px;
+        text-align: center;
+        /* Remove font-family: monospace; */
+    }
+    .editor-btn:hover {
+        background-color: #e0e0e0;
+    }
+    .editor-btn.active {
+        background-color: #cce5ff;
+        border-color: #b8daff;
+    }
+    .editor-btn .material-icons-outlined {
+        font-size: 20px; /* Adjusted size for icons */
+        vertical-align: middle; /* Align icon better */
+    }
+    .prose-editor {
+        /* Mimic Tailwind's prose-xl for visual parity */
+        font-size: 1.25rem; /* text-xl */
+        line-height: 1.75; /* leading-relaxed */
+    }
+    .prose-editor h1 {
+        font-size: 2.25em;
+        font-weight: 800;
+        margin-top: 0;
+        margin-bottom: 0.88em;
+    }
+    .prose-editor h2 {
+        font-size: 1.5em;
+        font-weight: 700;
+        margin-top: 2em;
+        margin-bottom: 1em;
+    }
+    .prose-editor h3 {
+        font-size: 1.25em;
+        font-weight: 600;
+        margin-top: 1.6em;
+        margin-bottom: 0.6em;
+    }
+    .prose-editor p,
+    .prose-editor ul,
+    .prose-editor ol {
+        margin-bottom: 1.25em;
+    }
+    .prose-editor ul, .prose-editor ol {
+        padding-left: 1.5em;
+    }
+    .prose-editor li {
+        margin-top: 0.5em;
+        margin-bottom: 0.5em;
+    }
+    .prose-editor:focus {
+        outline: none;
+        border-color: #80bdff;
+        box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+    }
+    #symbol-picker-dropdown {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 5px;
+        padding: 5px;
+    }
+    .symbol-item {
+        cursor: pointer;
+        padding: 5px 10px;
+        text-align: center;
+        border-radius: 4px;
+    }
+    .symbol-item:hover {
+        background-color: #f0f0f0;
+    }
+</style>
+
 <?php include 'assets/template/intro-template.php'; ?>
+
 
 <div class="container mx-auto p-6 bg-white dark:bg-gray-800 shadow-md rounded-lg">
     <h1 class="text-3xl font-bold mb-6 text-gray-900 dark:text-white"><?= $pageTitle; ?></h1>
@@ -160,8 +246,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
 
         <div class="mb-4">
-            <label for="content" class="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">Content (HTML allowed):</label>
-            <textarea name="content" id="content" rows="15" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 dark:text-gray-200 leading-tight focus:outline-none focus:shadow-outline bg-white dark:bg-gray-700 dark:border-gray-600" required><?= htmlspecialchars($oldInput['content'] ?? ''); ?></textarea>
+            <label for="content-editor" class="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">Content:</label>
+            <div id="editor-container" class="border border-gray-300 dark:border-gray-600 rounded-lg">
+                <div id="toolbar" class="sticky top-0 z-10 bg-gray-100 dark:bg-gray-700 p-2 rounded-t-lg flex flex-wrap items-center gap-2 border-b border-gray-300 dark:border-gray-600">
+                    <!-- Basic Formatting -->
+                    <button type="button" class="editor-btn" data-command="bold"><span class="material-icons-outlined">format_bold</span></button>
+                    <button type="button" class="editor-btn" data-command="italic"><span class="material-icons-outlined">format_italic</span></button>
+                    <button type="button" class="editor-btn" data-command="underline"><span class="material-icons-outlined">format_underlined</span></button>
+                    <button type="button" class="editor-btn" data-command="superscript"><span class="material-icons-outlined">format_superscript</span></button>
+                    <button type="button" class="editor-btn" data-command="subscript"><span class="material-icons-outlined">format_subscript</span></button>
+                    <!-- Layout -->
+                    <button type="button" class="editor-btn" data-command="formatBlock" data-value="H1">H1</button>
+                    <button type="button" class="editor-btn" data-command="formatBlock" data-value="H2">H2</button>
+                    <button type="button" class="editor-btn" data-command="formatBlock" data-value="H3">H3</button>
+                    <button type="button" class="editor-btn" data-command="formatBlock" data-value="P">P</button>
+                    <button type="button" class="editor-btn" data-command="insertUnorderedList"><span class="material-icons-outlined">format_list_bulleted</span></button>
+                    <button type="button" class="editor-btn" data-command="insertOrderedList"><span class="material-icons-outlined">format_list_numbered</span></button>
+                    <!-- Alignment -->
+                    <button type="button" class="editor-btn" data-command="justifyLeft"><span class="material-icons-outlined">format_align_left</span></button>
+                    <button type="button" class="editor-btn" data-command="justifyCenter"><span class="material-icons-outlined">format_align_center</span></button>
+                    <button type="button" class="editor-btn" data-command="justifyRight"><span class="material-icons-outlined">format_align_right</span></button>
+                        <!-- History -->
+                        <button type="button" class="editor-btn" data-command="undo"><span class="material-icons-outlined">undo</span></button>
+                        <button type="button" class="editor-btn" data-command="redo"><span class="material-icons-outlined">redo</span></button>
+                        <!-- Mathematical Integration -->
+                        <button type="button" id="fraction-tool-btn" class="editor-btn"><sup>1</sup>&frasl;<sub>2</sub></button>
+                    </div>                <div id="content-editor" contenteditable="true" class="prose-editor p-4 h-96 overflow-y-auto">
+                    <!-- Content will be loaded here -->
+                </div>
+            </div>
+            <textarea name="content" id="content" class="hidden" required><?= htmlspecialchars($oldInput['content'] ?? ''); ?></textarea>
         </div>
 
         <div class="mb-4">
@@ -194,6 +308,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
+        const toolbar = document.getElementById('toolbar');
+        const editor = document.getElementById('content-editor');
+        const hiddenTextarea = document.getElementById('content');
+
+        // 1. Load existing HTML content into the editor
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = hiddenTextarea.value;
+        editor.innerHTML = tempDiv.textContent || tempDiv.innerText || "";
+
+        // 2. Add event listener for toolbar commands
+        toolbar.addEventListener('click', (e) => {
+            const target = e.target.closest('.editor-btn');
+            if (!target) return;
+
+            e.preventDefault();
+            const command = target.dataset.command;
+            const value = target.dataset.value || null;
+
+            document.execCommand(command, false, value);
+            editor.focus();
+        });
+
+        // 3. Sync editor content back to the hidden textarea on input
+        editor.addEventListener('input', () => {
+            hiddenTextarea.value = editor.innerHTML;
+        });
+
+        // Fraction Tool Logic (Remaining from Mathematical Tools)
+        const fractionToolBtn = document.getElementById('fraction-tool-btn');
+        fractionToolBtn.addEventListener('click', () => {
+            editor.focus();
+            const fractionHTML = '<sup>1</sup>&frasl;<sub>2</sub>';
+            document.execCommand('insertHTML', false, fractionHTML);
+        });
+
+        // 5. Sanitize pasted content
+        editor.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+            document.execCommand('insertText', false, text);
+        });
+
+        // --- Logic from previous step for difficulty field ---
         const contentTypeSelect = document.getElementById('type');
         const difficultyField = document.getElementById('difficulty-field');
 
@@ -206,9 +363,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         };
 
         contentTypeSelect.addEventListener('change', toggleDifficultyField);
-
-        // Initial check on page load
-        toggleDifficultyField();
+        toggleDifficultyField(); // Initial check
     });
 </script>
 

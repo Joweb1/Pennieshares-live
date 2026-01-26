@@ -84,7 +84,7 @@ $allContent = getAllContent();
                                     <?= htmlspecialchars(ucfirst($content['status'])); ?>
                                 </span>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400"><?= htmlspecialchars(ucfirst($content['difficulty'])); ?></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400"><?= htmlspecialchars(ucfirst($content['difficulty'] ?? 'N/A')); ?></td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400"><?= htmlspecialchars($content['author_username'] ?? 'N/A'); ?></td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400"><?= htmlspecialchars($content['created_at']); ?></td>
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">

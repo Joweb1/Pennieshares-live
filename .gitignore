@@ -19,3 +19,5 @@ error_log
 
 # Gemini CLI temp files
 .gemini/
+# Cache files
+database/cache/
