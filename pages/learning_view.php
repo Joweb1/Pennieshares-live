@@ -156,7 +156,6 @@ if ($slug) {
                 <img src="<?= htmlspecialchars($content['banner_image'] ?? '/assets/images/placeholder.jpg') ?>" alt="<?= $pageTitle ?>">
                 <h1><?= $pageTitle ?></h1>
                 <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                    By <?= htmlspecialchars($content['author_username'] ?? 'Admin') ?> on <?= date('F j, Y', strtotime($content['created_at'])) ?>
                     <?php if ($content['type'] === 'learning'): ?>
                         <span class="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
                         <?php 

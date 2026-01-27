@@ -37,6 +37,7 @@ function createContent(array $data) {
     $status = $data['status'] ?? 'private';
     $difficulty = $data['difficulty'] ?? 'beginner';
     $author_id = $data['author_id'] ?? $_SESSION['user']['id'] ?? null;
+    $created_at = $data['created_at'] ?? date('Y-m-d H:i:s');
 
     if (empty($title) || empty($content) || !$author_id) {
         return false; // Basic validation
@@ -50,8 +51,8 @@ function createContent(array $data) {
     }
 
     try {
-        $stmt = $pdo_mysql->prepare("INSERT INTO content (type, title, slug, banner_image, content, status, difficulty, author_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$type, $title, $slug, $banner_image, $content, $status, $difficulty, $author_id]);
+        $stmt = $pdo_mysql->prepare("INSERT INTO content (type, title, slug, banner_image, content, status, difficulty, author_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$type, $title, $slug, $banner_image, $content, $status, $difficulty, $author_id, $created_at]);
         return $pdo_mysql->lastInsertId();
     } catch (PDOException $e) {
         error_log("Error creating content: " . $e->getMessage());
@@ -119,7 +120,8 @@ function updateContent(int $id, array $data): bool {
     if (isset($data['content'])) { $fields[] = 'content = ?'; $values[] = $data['content']; }
     if (isset($data['status'])) { $fields[] = 'status = ?'; $values[] = $data['status']; }
     if (isset($data['difficulty'])) { $fields[] = 'difficulty = ?'; $values[] = $data['difficulty']; }
-    // author_id is typically set on creation, not updated frequently, but could be added if needed
+    if (isset($data['author_id'])) { $fields[] = 'author_id = ?'; $values[] = $data['author_id']; }
+    if (isset($data['created_at'])) { $fields[] = 'created_at = ?'; $values[] = $data['created_at']; }
 
     if (empty($fields)) {
         return false; // No data to update

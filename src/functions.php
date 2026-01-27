@@ -870,6 +870,13 @@ function getUnverifiedUsers($searchQuery = '') {
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
+function getAllUsers() {
+    global $pdo_mysql;
+    $stmt = $pdo_mysql->prepare("SELECT id, username FROM users ORDER BY username ASC");
+    $stmt->execute();
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
 
 function checkAndSendDailyLoginEmail($userId) {
     global $pdo_mysql;

@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../src/init.php';
 require_once __DIR__ . '/../src/content_functions.php';
+require_once __DIR__ . '/../src/functions.php';
 
 check_auth();
 
@@ -9,6 +10,8 @@ if (!isset($_SESSION['user']) || $_SESSION['user']['is_admin'] !== 1) {
     header('Location: /login'); // Redirect non-admins
     exit;
 }
+
+$allUsers = getAllUsers();
 
 $pageTitle = "Manage Content";
 $pageDescription = "Admin panel for managing learning and news content.";
@@ -54,6 +57,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $status = filter_input(INPUT_POST, 'status', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
     $difficulty = filter_input(INPUT_POST, 'difficulty', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
     $current_banner_image = filter_input(INPUT_POST, 'current_banner_image', FILTER_SANITIZE_URL);
+    $author_id = filter_input(INPUT_POST, 'author_id', FILTER_VALIDATE_INT);
+    $created_at = filter_input(INPUT_POST, 'created_at');
 
     // Basic Validation
     if (empty($type) || !in_array($type, ['learning', 'news'])) {
@@ -70,6 +75,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if ($type === 'learning' && (empty($difficulty) || !in_array($difficulty, ['beginner', 'intermediate', 'advanced']))) {
         $errors[] = "Invalid difficulty for learning content.";
+    }
+    if ($author_id === false) {
+        $errors[] = "Invalid author selected.";
+    }
+    // Validate the date format
+    if ($created_at && !DateTime::createFromFormat('Y-m-d\TH:i', $created_at)) {
+        $errors[] = "Invalid publication date format.";
     }
 
 
@@ -95,7 +107,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'content' => $text_content,
             'status' => $status,
             'difficulty' => ($type === 'learning' ? $difficulty : null),
-            'author_id' => $_SESSION['user']['id']
+            'author_id' => $author_id,
+            'created_at' => $created_at ? date('Y-m-d H:i:s', strtotime($created_at)) : date('Y-m-d H:i:s')
         ];
 
         if ($editMode) {
@@ -234,6 +247,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="mb-4">
             <label for="title" class="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">Title:</label>
             <input type="text" name="title" id="title" value="<?= htmlspecialchars($oldInput['title'] ?? ''); ?>" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 dark:text-gray-200 leading-tight focus:outline-none focus:shadow-outline bg-white dark:bg-gray-700 dark:border-gray-600" required>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+                <label for="author_id" class="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">Author:</label>
+                <select name="author_id" id="author_id" class="shadow border rounded w-full py-2 px-3 text-gray-700 dark:text-gray-200 leading-tight focus:outline-none focus:shadow-outline bg-white dark:bg-gray-700 dark:border-gray-600">
+                    <?php foreach ($allUsers as $user): ?>
+                        <option value="<?= $user['id']; ?>" <?= (isset($oldInput['author_id']) && $oldInput['author_id'] == $user['id']) ? 'selected' : ''; ?>>
+                            <?= htmlspecialchars($user['username']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div>
+                <label for="created_at" class="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">Publication Date:</label>
+                <input type="datetime-local" name="created_at" id="created_at" value="<?= isset($oldInput['created_at']) ? date('Y-m-d\TH:i', strtotime($oldInput['created_at'])) : date('Y-m-d\TH:i'); ?>" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 dark:text-gray-200 leading-tight focus:outline-none focus:shadow-outline bg-white dark:bg-gray-700 dark:border-gray-600">
+            </div>
         </div>
 
         <div class="mb-4">
