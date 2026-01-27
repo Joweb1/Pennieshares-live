@@ -13,13 +13,17 @@ define('MAX_GENERATIONS_PAYOUT_DEPTH', 5);
 
 // --- Helper Functions ---
 function getAssetTypes() {
-    global $pdo_mysql;
-    return $pdo_mysql->query("SELECT * FROM asset_types ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC);
+    return getCached('asset_types', function() {
+        global $pdo_mysql;
+        return $pdo_mysql->query("SELECT * FROM asset_types ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC);
+    });
 }
 
 function getCompanyFunds() {
-    global $pdo_mysql;
-    return $pdo_mysql->query("SELECT * FROM company_funds WHERE id = 1")->fetch(PDO::FETCH_ASSOC);
+    return getCached('company_funds', function() {
+        global $pdo_mysql;
+        return $pdo_mysql->query("SELECT * FROM company_funds WHERE id = 1")->fetch(PDO::FETCH_ASSOC);
+    });
 }
 
 // --- New Function to Check and Mark Expired Assets ---
@@ -459,37 +463,41 @@ function getUserPayouts($userId) {
 
 // --- Functions for Chart Data ---
 function getOverallIncomeStats() {
-    global $pdo_mysql;
-    $companyFunds = getCompanyFunds();
-    $payoutsTotals = $pdo_mysql->query(" 
-        SELECT 
-            SUM(CASE WHEN payout_type = 'generational' THEN amount ELSE 0 END) as total_generational,
-            SUM(CASE WHEN payout_type = 'shared' THEN amount ELSE 0 END) as total_shared
-        FROM payouts
-    ")->fetch(PDO::FETCH_ASSOC);
+    return getCached('overall_income_stats', function() {
+        global $pdo_mysql;
+        $companyFunds = getCompanyFunds();
+        $payoutsTotals = $pdo_mysql->query(" 
+            SELECT 
+                SUM(CASE WHEN payout_type = 'generational' THEN amount ELSE 0 END) as total_generational,
+                SUM(CASE WHEN payout_type = 'shared' THEN amount ELSE 0 END) as total_shared
+            FROM payouts
+        ")->fetch(PDO::FETCH_ASSOC);
 
-    return [
-        'company_profit' => $companyFunds['total_company_profit'],
-        'reservation_fund' => $companyFunds['total_reservation_fund'],
-        'total_generational_paid' => $payoutsTotals['total_generational'] ?? 0,
-        'total_shared_paid' => $payoutsTotals['total_shared'] ?? 0
-    ];
+        return [
+            'company_profit' => $companyFunds['total_company_profit'],
+            'reservation_fund' => $companyFunds['total_reservation_fund'],
+            'total_generational_paid' => $payoutsTotals['total_generational'] ?? 0,
+            'total_shared_paid' => $payoutsTotals['total_shared'] ?? 0
+        ];
+    });
 }
 
 function getAssetStatusDistribution() {
-    global $pdo_mysql;
-    $now = date('Y-m-d H:i:s');
-    $sql = " 
-        SELECT 
-            SUM(IF(is_sold = 1, 1, 0)) as sold_count,
-            SUM(IF(is_completed = 1 AND is_sold = 0, 1, 0)) as completed_count,
-            SUM(IF(is_completed = 0 AND is_sold = 0 AND (is_manually_expired = 1 OR (expires_at IS NOT NULL AND expires_at < ?)), 1, 0)) as expired_count,
-            SUM(IF(is_completed = 0 AND is_sold = 0 AND is_manually_expired = 0 AND (expires_at IS NULL OR expires_at >= ?), 1, 0)) as active_count
-        FROM assets
-    ";
-    $stmt = $pdo_mysql->prepare($sql);
-    $stmt->execute([$now, $now]);
-    return $stmt->fetch(PDO::FETCH_ASSOC);
+    return getCached('asset_status_distribution', function() {
+        global $pdo_mysql;
+        $now = date('Y-m-d H:i:s');
+        $sql = " 
+            SELECT 
+                SUM(IF(is_sold = 1, 1, 0)) as sold_count,
+                SUM(IF(is_completed = 1 AND is_sold = 0, 1, 0)) as completed_count,
+                SUM(IF(is_completed = 0 AND is_sold = 0 AND (is_manually_expired = 1 OR (expires_at IS NOT NULL AND expires_at < ?)), 1, 0)) as expired_count,
+                SUM(IF(is_completed = 0 AND is_sold = 0 AND is_manually_expired = 0 AND (expires_at IS NULL OR expires_at >= ?), 1, 0)) as active_count
+            FROM assets
+        ";
+        $stmt = $pdo_mysql->prepare($sql);
+        $stmt->execute([$now, $now]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    });
 }
 
 function getAssetBranding($asset_type_id) {
@@ -1046,29 +1054,31 @@ function getPaginatedAssets($limit, $offset, $searchQuery = '') {
 }
 
 function getTotalAssetCount($searchQuery = '') {
-    global $pdo_mysql;
+    return getCached('total_asset_count_' . md5($searchQuery), function() use ($searchQuery) {
+        global $pdo_mysql;
 
-    if (empty($searchQuery)) {
-        $stmt = $pdo_mysql->query("SELECT COUNT(*) FROM assets");
+        if (empty($searchQuery)) {
+            $stmt = $pdo_mysql->query("SELECT COUNT(*) FROM assets");
+            return $stmt->fetchColumn();
+        }
+
+        // If there is a search query, find matching users first
+        $stmt = $pdo_mysql->prepare("SELECT id FROM users WHERE username LIKE ? OR email LIKE ? OR partner_code LIKE ?");
+        $searchTerm = '%' . $searchQuery . '%';
+        $stmt->execute([$searchTerm, $searchTerm, $searchTerm]);
+        $userIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        if (empty($userIds)) {
+            return 0; // No users found, so asset count is 0
+        }
+
+        $placeholders = implode(',', array_fill(0, count($userIds), '?'));
+        $sql = "SELECT COUNT(*) FROM assets WHERE user_id IN ($placeholders)";
+        
+        $stmt = $pdo_mysql->prepare($sql);
+        $stmt->execute($userIds);
         return $stmt->fetchColumn();
-    }
-
-    // If there is a search query, find matching users first
-    $stmt = $pdo_mysql->prepare("SELECT id FROM users WHERE username LIKE ? OR email LIKE ? OR partner_code LIKE ?");
-    $searchTerm = '%' . $searchQuery . '%';
-    $stmt->execute([$searchTerm, $searchTerm, $searchTerm]);
-    $userIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
-
-    if (empty($userIds)) {
-        return 0; // No users found, so asset count is 0
-    }
-
-    $placeholders = implode(',', array_fill(0, count($userIds), '?'));
-    $sql = "SELECT COUNT(*) FROM assets WHERE user_id IN ($placeholders)";
-    
-    $stmt = $pdo_mysql->prepare($sql);
-    $stmt->execute($userIds);
-    return $stmt->fetchColumn();
+    });
 }
 
 function generateStatsForExistingAssets() {
