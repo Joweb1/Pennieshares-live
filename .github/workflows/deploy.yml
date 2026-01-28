@@ -12,9 +12,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Remove .git directory
-        run: rm -rf .git
-
       - name: FTP Deploy
         uses: SamKirkland/FTP-Deploy-Action@4.1.0
         with:
@@ -26,10 +23,12 @@ jobs:
           server-dir: public_html/
           protocol: ftp
           exclude: |
-            .git*
-            .git/**
+            **/.git*
             **/.git/**
+            **/node_modules/**
+            assets/asset.zip
             uploads/**
             database/**
+            logs/**
             .env
             .github/**
