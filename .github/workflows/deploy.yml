@@ -23,7 +23,9 @@ jobs:
           server-dir: public_html/
           protocol: ftp
           exclude: |
+            .git*
             .git/**
+            **/.git/**
             uploads/**
             database/**
             .env
