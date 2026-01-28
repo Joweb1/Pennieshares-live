@@ -5,19 +5,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/assets_functions.php';
 
 function getCached($key, $callback, $ttl = 3600) {
-    $cacheFile = __DIR__ . '/../database/cache/' . md5($key) . '.cache';
-    if (file_exists($cacheFile) && (time() - filemtime($cacheFile) < $ttl)) {
-        return unserialize(file_get_contents($cacheFile));
-    }
-
-    $data = $callback();
-
-    if (!is_dir(__DIR__ . '/../database/cache')) {
-        mkdir(__DIR__ . '/../database/cache', 0775, true);
-    }
-    file_put_contents($cacheFile, serialize($data));
-
-    return $data;
+    return $callback();
 }
 
 function getUserByEmail($email) {
