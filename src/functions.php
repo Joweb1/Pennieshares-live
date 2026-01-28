@@ -1133,40 +1133,36 @@ function getTotalPendingProfitsCount($searchQuery = '') {
     return getCached('total_pending_profits_count_' . md5($searchQuery), function() use ($searchQuery) {
         global $pdo_mysql;
 
-        // First, get the count of all uncredited profits
-        $base_sql = "SELECT COUNT(*) FROM pending_profits WHERE is_credited = 0";
+        $sql = "SELECT COUNT(*) FROM pending_profits pp";
+        $params = [];
 
         if (!empty($searchQuery)) {
-            // Find user IDs from MySQL
-            $userStmt = $pdo_mysql->prepare("SELECT id FROM users WHERE username LIKE ? OR email LIKE ? OR partner_code LIKE ?");
+            $sql .= " LEFT JOIN users u ON pp.user_id = u.id";
+            $sql .= " WHERE (pp.is_credited = 0) AND (";
+            
+            $searchClauses = [];
             $searchTerm = '%' . $searchQuery . '%';
-            $userStmt->execute([$searchTerm, $searchTerm, $searchTerm]);
-            $userIds = $userStmt->fetchAll(PDO::FETCH_COLUMN);
-
-            $params = [];
-            $searchWhereClauses = [];
-
-            // Add payout_type search
-            $searchWhereClauses[] = "payout_type LIKE ?";
+            
+            $searchClauses[] = "u.username LIKE ?";
             $params[] = $searchTerm;
 
-            // Add user_id search if any were found
-            if (!empty($userIds)) {
-                $placeholders = implode(',', array_fill(0, count($userIds), '?'));
-                $searchWhereClauses[] = "user_id IN ($placeholders)";
-                $params = array_merge($params, $userIds);
-            }
+            $searchClauses[] = "u.email LIKE ?";
+            $params[] = $searchTerm;
+
+            $searchClauses[] = "u.partner_code LIKE ?";
+            $params[] = $searchTerm;
             
-            $sql = "SELECT COUNT(*) FROM pending_profits WHERE is_credited = 0 AND (" . implode(' OR ', $searchWhereClauses) . ")";
+            $searchClauses[] = "pp.payout_type LIKE ?";
+            $params[] = $searchTerm;
             
-            $stmt = $pdo_mysql->prepare($sql);
-            $stmt->execute($params);
-            return $stmt->fetchColumn();
+            $sql .= implode(' OR ', $searchClauses) . ")";
         } else {
-            // If no search query, just count all uncredited profits
-            $stmt = $pdo_mysql->query($base_sql);
-            return $stmt->fetchColumn();
+            $sql .= " WHERE pp.is_credited = 0";
         }
+            
+        $stmt = $pdo_mysql->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchColumn();
     });
 }
 
@@ -1174,27 +1170,27 @@ function getTotalPendingProfitsSum($searchQuery = '') {
     return getCached('total_pending_profits_sum_' . md5($searchQuery), function() use ($searchQuery) {
         global $pdo_mysql;
         
+        $sql = "SELECT SUM(fractional_amount) FROM pending_profits pp";
+        $params = [];
+        
         if (!empty($searchQuery)) {
-            // Find user IDs from MySQL
-            $userStmt = $pdo_mysql->prepare("SELECT id FROM users WHERE username LIKE ?");
-            $userStmt->execute(['%' . $searchQuery . '%']);
-            $userIds = $userStmt->fetchAll(PDO::FETCH_COLUMN);
-
-            // Build a query for pending_profits based on found user IDs or payout type
-            $sql = "SELECT SUM(fractional_amount) FROM pending_profits WHERE payout_type LIKE ?";
-            $params = ['%' . $searchQuery . '%'];
-            if (!empty($userIds)) {
-                $placeholders = implode(',', array_fill(0, count($userIds), '?'));
-                $sql .= " OR user_id IN ($placeholders)";
-                $params = array_merge($params, $userIds);
-            }
-            $stmt = $pdo_mysql->prepare($sql);
-            $stmt->execute($params);
-            return $stmt->fetchColumn() ?? 0;
-        } else {
-            $stmt = $pdo_mysql->query("SELECT SUM(fractional_amount) FROM pending_profits");
-            return $stmt->fetchColumn() ?? 0;
+            $sql .= " LEFT JOIN users u ON pp.user_id = u.id";
+            $sql .= " WHERE ";
+            $searchClauses = [];
+            $searchTerm = '%' . $searchQuery . '%';
+            
+            $searchClauses[] = "u.username LIKE ?";
+            $params[] = $searchTerm;
+            
+            $searchClauses[] = "pp.payout_type LIKE ?";
+            $params[] = $searchTerm;
+            
+            $sql .= "(" . implode(' OR ', $searchClauses) . ")";
         }
+        
+        $stmt = $pdo_mysql->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchColumn() ?? 0;
     });
 }
 

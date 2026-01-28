@@ -999,27 +999,18 @@ function deleteAssetType($assetTypeId) {
 function getPaginatedAssets($limit, $offset, $searchQuery = '') {
     global $pdo_mysql;
 
-    $userIds = [];
-    if (!empty($searchQuery)) {
-        $stmt = $pdo_mysql->prepare("SELECT id FROM users WHERE username LIKE ? OR email LIKE ? OR partner_code LIKE ?");
-        $searchTerm = '%' . $searchQuery . '%';
-        $stmt->execute([$searchTerm, $searchTerm, $searchTerm]);
-        $userIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
-        if (empty($userIds)) {
-            return []; // No users found, so no assets to return
-        }
-    }
-
     $sql = "SELECT a.*, at.name as asset_type_name, at.payout_cap as type_payout_cap, at.price as asset_price,
-            (a.total_generational_received + a.total_shared_received) as total_earned
+            (a.total_generational_received + a.total_shared_received) as total_earned,
+            u.username
             FROM assets a 
-            JOIN asset_types at ON a.asset_type_id = at.id";
+            JOIN asset_types at ON a.asset_type_id = at.id
+            JOIN users u ON a.user_id = u.id";
     
     $params = [];
-    if (!empty($userIds)) {
-        $placeholders = implode(',', array_fill(0, count($userIds), '?'));
-        $sql .= " WHERE a.user_id IN ($placeholders)";
-        $params = $userIds;
+    if (!empty($searchQuery)) {
+        $sql .= " WHERE u.username LIKE ? OR u.email LIKE ? OR u.partner_code LIKE ?";
+        $searchTerm = '%' . $searchQuery . '%';
+        $params = [$searchTerm, $searchTerm, $searchTerm];
     }
 
     $sql .= " ORDER BY a.id ASC LIMIT ? OFFSET ?";
@@ -1035,48 +1026,24 @@ function getPaginatedAssets($limit, $offset, $searchQuery = '') {
     $stmt->bindValue($paramIndex, (int)$offset, PDO::PARAM_INT);
 
     $stmt->execute();
-    $assets = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // Manually add username to each asset
-    if (!empty($assets)) {
-        $allUserIds = array_column($assets, 'user_id');
-        $userPlaceholders = implode(',', array_fill(0, count($allUserIds), '?'));
-        $userStmt = $pdo_mysql->prepare("SELECT id, username FROM users WHERE id IN ($userPlaceholders)");
-        $userStmt->execute($allUserIds);
-        $users = $userStmt->fetchAll(PDO::FETCH_KEY_PAIR);
-
-        foreach ($assets as &$asset) {
-            $asset['username'] = $users[$asset['user_id']] ?? 'Unknown';
-        }
-    }
-
-    return $assets;
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
 function getTotalAssetCount($searchQuery = '') {
     return getCached('total_asset_count_' . md5($searchQuery), function() use ($searchQuery) {
         global $pdo_mysql;
 
-        if (empty($searchQuery)) {
-            $stmt = $pdo_mysql->query("SELECT COUNT(*) FROM assets");
-            return $stmt->fetchColumn();
+        $sql = "SELECT COUNT(*) FROM assets a";
+        $params = [];
+
+        if (!empty($searchQuery)) {
+            $sql .= " JOIN users u ON a.user_id = u.id WHERE u.username LIKE ? OR u.email LIKE ? OR u.partner_code LIKE ?";
+            $searchTerm = '%' . $searchQuery . '%';
+            $params = [$searchTerm, $searchTerm, $searchTerm];
         }
 
-        // If there is a search query, find matching users first
-        $stmt = $pdo_mysql->prepare("SELECT id FROM users WHERE username LIKE ? OR email LIKE ? OR partner_code LIKE ?");
-        $searchTerm = '%' . $searchQuery . '%';
-        $stmt->execute([$searchTerm, $searchTerm, $searchTerm]);
-        $userIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
-
-        if (empty($userIds)) {
-            return 0; // No users found, so asset count is 0
-        }
-
-        $placeholders = implode(',', array_fill(0, count($userIds), '?'));
-        $sql = "SELECT COUNT(*) FROM assets WHERE user_id IN ($placeholders)";
-        
         $stmt = $pdo_mysql->prepare($sql);
-        $stmt->execute($userIds);
+        $stmt->execute($params);
         return $stmt->fetchColumn();
     });
 }
