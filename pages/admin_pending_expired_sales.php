@@ -85,8 +85,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $_SESSION['action_message'] = "Asset #{$assetId} sale approved. SV" . number_format($salePrice, 2) . " credited to {$user['username']}'s wallet.";
 
         } elseif ($_POST['action'] === 'delay_sale') {
-            // Mark asset as delayed
-            $updateStmt = $pdo_mysql->prepare("UPDATE assets SET sale_status = 'delayed' WHERE id = ?");
+            // Set sale_status to NULL so the user can try selling it again later
+            $updateStmt = $pdo_mysql->prepare("UPDATE assets SET sale_status = NULL WHERE id = ?");
             $updateStmt->execute([$assetId]);
 
             // Send delay email
@@ -99,12 +99,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             // Send push notification
             $payload = [
                 'title' => 'Expired Asset Sale Delayed',
-                'body' => 'There was an issue with the sale of your ' . htmlspecialchars($pendingAsset['asset_type_name']) . '. It will be resolved and credited within 5 working days.',
+                'body' => 'An error occurred with the sale of your ' . htmlspecialchars($pendingAsset['asset_type_name']) . '. Please try again in a week\'s time.',
                 'icon' => 'assets/images/logo.png',
             ];
             sendPushNotification($pendingAsset['user_id'], $payload);
 
-            $_SESSION['action_message'] = "Asset #{$assetId} sale delayed. User notified.";
+            $_SESSION['action_message'] = "Asset #{$assetId} sale delayed (status reset). User notified to try again in a week.";
         }
         
         $pdo_mysql->commit();

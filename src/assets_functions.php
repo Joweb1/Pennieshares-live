@@ -355,6 +355,11 @@ function buyAsset($userId, $assetTypeId, $numAssetsToBuy = 1) {
         sendPushNotification($userId, $buyer_payload);
     }
 
+    clearCache('total_assets_cost');
+    clearCache('total_asset_count_'); // This is a prefix, but clearCache handles it
+    clearCache('overall_income_stats');
+    clearCache('asset_status_distribution');
+
     return $overallResults;
 }
 
@@ -479,7 +484,7 @@ function getOverallIncomeStats() {
             'total_generational_paid' => $payoutsTotals['total_generational'] ?? 0,
             'total_shared_paid' => $payoutsTotals['total_shared'] ?? 0
         ];
-    });
+    }, 600);
 }
 
 function getAssetStatusDistribution() {
@@ -497,7 +502,7 @@ function getAssetStatusDistribution() {
         $stmt = $pdo_mysql->prepare($sql);
         $stmt->execute([$now, $now]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
-    });
+    }, 600);
 }
 
 function getAssetBranding($asset_type_id) {
@@ -997,36 +1002,38 @@ function deleteAssetType($assetTypeId) {
 }
 
 function getPaginatedAssets($limit, $offset, $searchQuery = '') {
-    global $pdo_mysql;
+    return getCached('get_paginated_assets_' . (int)$limit . '_' . (int)$offset . '_' . md5($searchQuery), function() use ($limit, $offset, $searchQuery) {
+        global $pdo_mysql;
 
-    $sql = "SELECT a.*, at.name as asset_type_name, at.payout_cap as type_payout_cap, at.price as asset_price,
-            (a.total_generational_received + a.total_shared_received) as total_earned,
-            u.username
-            FROM assets a 
-            JOIN asset_types at ON a.asset_type_id = at.id
-            JOIN users u ON a.user_id = u.id";
-    
-    $params = [];
-    if (!empty($searchQuery)) {
-        $sql .= " WHERE u.username LIKE ? OR u.email LIKE ? OR u.partner_code LIKE ?";
-        $searchTerm = '%' . $searchQuery . '%';
-        $params = [$searchTerm, $searchTerm, $searchTerm];
-    }
+        $sql = "SELECT a.*, at.name as asset_type_name, at.payout_cap as type_payout_cap, at.price as asset_price,
+                (a.total_generational_received + a.total_shared_received) as total_earned,
+                u.username
+                FROM assets a 
+                JOIN asset_types at ON a.asset_type_id = at.id
+                JOIN users u ON a.user_id = u.id";
+        
+        $params = [];
+        if (!empty($searchQuery)) {
+            $sql .= " WHERE u.username LIKE ? OR u.email LIKE ? OR u.partner_code LIKE ?";
+            $searchTerm = '%' . $searchQuery . '%';
+            $params = [$searchTerm, $searchTerm, $searchTerm];
+        }
 
-    $sql .= " ORDER BY a.id ASC LIMIT ? OFFSET ?";
+        $sql .= " ORDER BY a.id ASC LIMIT ? OFFSET ?";
 
-    $stmt = $pdo_mysql->prepare($sql);
+        $stmt = $pdo_mysql->prepare($sql);
 
-    // Bind parameters
-    $paramIndex = 1;
-    foreach ($params as $value) {
-        $stmt->bindValue($paramIndex++, $value);
-    }
-    $stmt->bindValue($paramIndex++, (int)$limit, PDO::PARAM_INT);
-    $stmt->bindValue($paramIndex, (int)$offset, PDO::PARAM_INT);
+        // Bind parameters
+        $paramIndex = 1;
+        foreach ($params as $value) {
+            $stmt->bindValue($paramIndex++, $value);
+        }
+        $stmt->bindValue($paramIndex++, (int)$limit, PDO::PARAM_INT);
+        $stmt->bindValue($paramIndex, (int)$offset, PDO::PARAM_INT);
 
-    $stmt->execute();
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }, 60);
 }
 
 function getTotalAssetCount($searchQuery = '') {
@@ -1045,7 +1052,7 @@ function getTotalAssetCount($searchQuery = '') {
         $stmt = $pdo_mysql->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchColumn();
-    });
+    }, 300);
 }
 
 function generateStatsForExistingAssets() {

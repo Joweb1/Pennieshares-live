@@ -5,7 +5,37 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/assets_functions.php';
 
 function getCached($key, $callback, $ttl = 3600) {
-    return $callback();
+    $cacheDir = __DIR__ . '/../database/cache';
+    if (!is_dir($cacheDir)) {
+        mkdir($cacheDir, 0777, true);
+    }
+
+    $cacheFile = $cacheDir . '/' . md5($key) . '.cache';
+
+    if (file_exists($cacheFile) && (time() - filemtime($cacheFile) < $ttl)) {
+        return unserialize(file_get_contents($cacheFile));
+    }
+
+    $data = $callback();
+    file_put_contents($cacheFile, serialize($data));
+    return $data;
+}
+
+function clearCache($key = null) {
+    $cacheDir = __DIR__ . '/../database/cache';
+    if ($key) {
+        $cacheFile = $cacheDir . '/' . md5($key) . '.cache';
+        if (file_exists($cacheFile)) {
+            unlink($cacheFile);
+        }
+    } else {
+        $files = glob($cacheDir . '/*.cache');
+        foreach ($files as $file) {
+            if (is_file($file)) {
+                unlink($file);
+            }
+        }
+    }
 }
 
 function getUserByEmail($email) {
@@ -361,6 +391,8 @@ function creditUserWallet($userId, $amount, $description = 'Broker Credited You'
         $result = $stmt->execute(['amount' => $final_amount, 'id' => $userId]);
         
         if ($result) {
+            clearCache('total_users_wallet_balance');
+            clearCache('overall_income_stats');
             // Log the transaction
             $logStmt = $pdo_mysql->prepare("INSERT INTO wallet_transactions (user_id, type, amount, description) VALUES (?, ?, ?, ?)");
             $logStmt->execute([$userId, 'credit', $final_amount, $description]);
@@ -557,7 +589,7 @@ function getTotalUsersWalletBalance() {
         $stmt = $pdo_mysql->prepare("SELECT SUM(wallet_balance) FROM users");
         $stmt->execute();
         return $stmt->fetchColumn() ?? 0;
-    });
+    }, 300);
 }
 
 function getTotalAssetsCost() {
@@ -566,7 +598,7 @@ function getTotalAssetsCost() {
         $stmt = $pdo_mysql->prepare("SELECT SUM(at.price) FROM assets a JOIN asset_types at ON a.asset_type_id = at.id");
         $stmt->execute();
         return $stmt->fetchColumn() ?? 0;
-    });
+    }, 300);
 }
 
 function getTotalUsersProfit() {
@@ -575,7 +607,7 @@ function getTotalUsersProfit() {
         $stmt = $pdo_mysql->prepare("SELECT SUM(total_return) FROM users");
         $stmt->execute();
         return $stmt->fetchColumn() ?? 0;
-    });
+    }, 300);
 }
 
 function debitUserWallet($userId, $amount, $transactionDescription = '') {
@@ -599,6 +631,9 @@ function debitUserWallet($userId, $amount, $transactionDescription = '') {
     // Log the transaction
     $logStmt = $pdo_mysql->prepare("INSERT INTO wallet_transactions (user_id, type, amount, description) VALUES (?, ?, ?, ?)");
     $logStmt->execute([$userId, 'debit', -$amount, $transactionDescription]);
+
+    clearCache('total_users_wallet_balance');
+    clearCache('overall_income_stats');
 
     // Send email to user
     $user = getUserByIdOrName($userId);
@@ -803,26 +838,28 @@ function deletePaymentProof($proofId) {
 }
 
 function getPaginatedUsers($limit, $offset, $searchQuery = '') {
-    global $pdo_mysql;
-    $sql = "SELECT * FROM users";
-    $params = [];
+    return getCached('get_paginated_users_' . (int)$limit . '_' . (int)$offset . '_' . md5($searchQuery), function() use ($limit, $offset, $searchQuery) {
+        global $pdo_mysql;
+        $sql = "SELECT * FROM users";
+        $params = [];
 
-    if (!empty($searchQuery)) {
-        $sql .= " WHERE username LIKE ? OR email LIKE ? OR partner_code LIKE ?";
-        $searchTerm = '%' . $searchQuery . '%';
-        $params = [$searchTerm, $searchTerm, $searchTerm];
-    }
+        if (!empty($searchQuery)) {
+            $sql .= " WHERE username LIKE ? OR email LIKE ? OR partner_code LIKE ?";
+            $searchTerm = '%' . $searchQuery . '%';
+            $params = [$searchTerm, $searchTerm, $searchTerm];
+        }
 
-    // MySQL requires integer literals for LIMIT and OFFSET.
-    // We ensure they are integers to prevent SQL injection.
-    $limit = (int) $limit;
-    $offset = (int) $offset;
+        // MySQL requires integer literals for LIMIT and OFFSET.
+        // We ensure they are integers to prevent SQL injection.
+        $limit = (int) $limit;
+        $offset = (int) $offset;
 
-    $sql .= " ORDER BY id ASC LIMIT $limit OFFSET $offset";
+        $sql .= " ORDER BY id ASC LIMIT $limit OFFSET $offset";
 
-    $stmt = $pdo_mysql->prepare($sql);
-    $stmt->execute($params);
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt = $pdo_mysql->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }, 60);
 }
 
 function getTotalUserCount($searchQuery = '') {
@@ -840,7 +877,7 @@ function getTotalUserCount($searchQuery = '') {
         $stmt = $pdo_mysql->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchColumn();
-    });
+    }, 300);
 }
 
 function getUnverifiedUsers($searchQuery = '') {
@@ -1075,58 +1112,60 @@ function processPendingProfits() {
 }
 
 function getPaginatedPendingProfits($limit, $offset, $searchQuery = '') {
-    global $pdo_mysql;
+    return getCached('get_paginated_pending_profits_' . (int)$limit . '_' . (int)$offset . '_' . md5($searchQuery), function() use ($limit, $offset, $searchQuery) {
+        global $pdo_mysql;
 
-    // Base query with a JOIN to fetch usernames directly
-    $sql = "
-        SELECT pp.*, u.username 
-        FROM pending_profits pp
-        LEFT JOIN users u ON pp.user_id = u.id
-    ";
-    $params = [];
-    $whereClauses = ['pp.is_credited = 0']; // Always filter for uncredited profits
+        // Base query with a JOIN to fetch usernames directly
+        $sql = "
+            SELECT pp.*, u.username 
+            FROM pending_profits pp
+            LEFT JOIN users u ON pp.user_id = u.id
+        ";
+        $params = [];
+        $whereClauses = ['pp.is_credited = 0']; // Always filter for uncredited profits
 
-    if (!empty($searchQuery)) {
-        // Since we're joining, we can search users table directly
-        $searchWhereClauses = [];
-        $searchTerm = '%' . $searchQuery . '%';
-        
-        $searchWhereClauses[] = "u.username LIKE ?";
-        $params[] = $searchTerm;
+        if (!empty($searchQuery)) {
+            // Since we're joining, we can search users table directly
+            $searchWhereClauses = [];
+            $searchTerm = '%' . $searchQuery . '%';
+            
+            $searchWhereClauses[] = "u.username LIKE ?";
+            $params[] = $searchTerm;
 
-        $searchWhereClauses[] = "u.email LIKE ?";
-        $params[] = $searchTerm;
+            $searchWhereClauses[] = "u.email LIKE ?";
+            $params[] = $searchTerm;
 
-        $searchWhereClauses[] = "u.partner_code LIKE ?";
-        $params[] = $searchTerm;
-        
-        // Also search payout_type from pending_profits
-        $searchWhereClauses[] = "pp.payout_type LIKE ?";
-        $params[] = $searchTerm;
-        
-        if (!empty($searchWhereClauses)) {
-             $whereClauses[] = "(" . implode(' OR ', $searchWhereClauses) . ")";
+            $searchWhereClauses[] = "u.partner_code LIKE ?";
+            $params[] = $searchTerm;
+            
+            // Also search payout_type from pending_profits
+            $searchWhereClauses[] = "pp.payout_type LIKE ?";
+            $params[] = $searchTerm;
+            
+            if (!empty($searchWhereClauses)) {
+                 $whereClauses[] = "(" . implode(' OR ', $searchWhereClauses) . ")";
+            }
         }
-    }
 
-    if (!empty($whereClauses)) {
-        $sql .= " WHERE " . implode(' AND ', $whereClauses);
-    }
-    
-    $sql .= " ORDER BY pp.credit_at ASC LIMIT ? OFFSET ?";
+        if (!empty($whereClauses)) {
+            $sql .= " WHERE " . implode(' AND ', $whereClauses);
+        }
+        
+        $sql .= " ORDER BY pp.credit_at ASC LIMIT ? OFFSET ?";
 
-    $stmt = $pdo_mysql->prepare($sql);
+        $stmt = $pdo_mysql->prepare($sql);
 
-    // Bind parameters
-    $paramIndex = 1;
-    foreach ($params as $value) {
-        $stmt->bindValue($paramIndex++, $value);
-    }
-    $stmt->bindValue($paramIndex++, (int)$limit, PDO::PARAM_INT);
-    $stmt->bindValue($paramIndex, (int)$offset, PDO::PARAM_INT);
+        // Bind parameters
+        $paramIndex = 1;
+        foreach ($params as $value) {
+            $stmt->bindValue($paramIndex++, $value);
+        }
+        $stmt->bindValue($paramIndex++, (int)$limit, PDO::PARAM_INT);
+        $stmt->bindValue($paramIndex, (int)$offset, PDO::PARAM_INT);
 
-    $stmt->execute();
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }, 60);
 }
 
 function getTotalPendingProfitsCount($searchQuery = '') {
@@ -1163,7 +1202,7 @@ function getTotalPendingProfitsCount($searchQuery = '') {
         $stmt = $pdo_mysql->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchColumn();
-    });
+    }, 300);
 }
 
 function getTotalPendingProfitsSum($searchQuery = '') {
@@ -1172,26 +1211,30 @@ function getTotalPendingProfitsSum($searchQuery = '') {
         
         $sql = "SELECT SUM(fractional_amount) FROM pending_profits pp";
         $params = [];
+        $whereClauses = ['pp.is_credited = 0'];
         
         if (!empty($searchQuery)) {
             $sql .= " LEFT JOIN users u ON pp.user_id = u.id";
-            $sql .= " WHERE ";
-            $searchClauses = [];
             $searchTerm = '%' . $searchQuery . '%';
             
+            $searchClauses = [];
             $searchClauses[] = "u.username LIKE ?";
             $params[] = $searchTerm;
             
             $searchClauses[] = "pp.payout_type LIKE ?";
             $params[] = $searchTerm;
             
-            $sql .= "(" . implode(' OR ', $searchClauses) . ")";
+            $whereClauses[] = "(" . implode(' OR ', $searchClauses) . ")";
+        }
+
+        if (!empty($whereClauses)) {
+            $sql .= " WHERE " . implode(' AND ', $whereClauses);
         }
         
         $stmt = $pdo_mysql->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchColumn() ?? 0;
-    });
+    }, 300);
 }
 
 function deletePaymentProofForUser($userId) {
