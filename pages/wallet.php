@@ -677,8 +677,154 @@ require_once __DIR__ . '/../assets/template/intro-template.php';
         margin: 0;
     }
 
+    /* SEC Update Banner & Popup Styles */
+    .sec-banner {
+      background: #fff5f5;
+      color: #c53030;
+      padding: 10px 0;
+      overflow: hidden;
+      white-space: nowrap;
+      position: relative;
+      border-bottom: 1px solid #feb2b2;
+      z-index: 5;
+    }
+
+    .sec-banner-text {
+      display: inline-block;
+      padding-left: 100%;
+      animation: marquee 25s linear infinite;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    @keyframes marquee {
+      0% { transform: translate(0, 0); }
+      100% { transform: translate(-100%, 0); }
+    }
+
+    .sec-popup-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(8px);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+    }
+
+    .sec-popup-content {
+      background: white;
+      width: 90%;
+      max-width: 500px;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      animation: popupSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes popupSlideUp {
+      from { transform: translateY(30px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .sec-popup-header {
+      background: #fef2f2;
+      padding: 24px;
+      text-align: center;
+      border-bottom: 1px solid #fee2e2;
+    }
+
+    .sec-popup-header i {
+      font-size: 48px;
+      color: #ef4444;
+      margin-bottom: 12px;
+    }
+
+    .sec-popup-header h2 {
+      color: #991b1b;
+      margin: 0;
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .sec-popup-body {
+      padding: 24px;
+      color: #374151;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    .sec-popup-body p { margin-bottom: 16px; }
+    
+    .sec-steps {
+      background: #f9fafb;
+      border-radius: 12px;
+      padding: 16px;
+      margin: 16px 0;
+    }
+
+    .sec-steps ul {
+      padding-left: 20px;
+      margin: 0;
+    }
+
+    .sec-steps li {
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+
+    .sec-popup-footer {
+      padding: 0 24px 24px;
+      text-align: center;
+    }
+
+    .btn-sec-action {
+      display: block;
+      width: 100%;
+      background: #2563eb;
+      color: white;
+      padding: 14px;
+      border-radius: 10px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background 0.2s;
+      margin-bottom: 12px;
+    }
+
+    .btn-sec-action:hover { background: #1d4ed8; }
+
+    .btn-sec-close {
+      color: #6b7280;
+      font-size: 14px;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+
+    /* Dark Mode Support */
+    html[data-theme="dark"] .sec-popup-content { background: #1f2937; color: #f3f4f6; }
+    html[data-theme="dark"] .sec-popup-header { background: #450a0a; border-bottom: 1px solid #7f1d1d; }
+    html[data-theme="dark"] .sec-popup-header h2 { color: #fecaca; }
+    html[data-theme="dark"] .sec-popup-body { color: #d1d5db; }
+    html[data-theme="dark"] .sec-steps { background: #374151; }
+    html[data-theme="dark"] .sec-banner { background: #450a0a; color: #fecaca; border-bottom: 1px solid #7f1d1d; }
+
   </style>
       <div class="content-wrapper">
+      
+      <?php if($loggedInUser['status'] == 2): ?>
+        <!-- Scrolling Banner -->
+        <div class="sec-banner" id="secBanner" style="display:none;">
+          <div class="sec-banner-text">
+            <i class="fas fa-exclamation-triangle"></i> 
+            Important Regulatory Update: The SEC has placed a temporary hold on Pennieshares' licensing. Action required: Please transition your holdings to Bamboo or Trove. Submit your ID Card via profile.
+          </div>
+        </div>
+      <?php endif; ?>
+
       <div class="portfolio-header">
         <p class="portfolio-title">My Wallet</p>
         <p class="portfolio-subtitle">Track your investments and performance</p>
@@ -822,6 +968,34 @@ require_once __DIR__ . '/../assets/template/intro-template.php';
     <span class="widget-label">Real-time Profit</span>
     <span id="profit-rate" class="widget-value">+0.00%</span>
   </div>
+
+  <?php if($loggedInUser['status'] == 2): ?>
+  <!-- SEC Update Popup -->
+  <div class="sec-popup-overlay" id="secPopupOverlay">
+    <div class="sec-popup-content">
+      <div class="sec-popup-header">
+        <i class="fas fa-shield-alt"></i>
+        <h2>Important Regulatory Update</h2>
+      </div>
+      <div class="sec-popup-body">
+        <p>The SEC has placed a temporary hold on Pennieshares licensing. To protect your investments, you are required to transition your holdings to our partner brokerage firms.</p>
+        <div class="sec-steps">
+          <strong>Next Steps:</strong>
+          <ul>
+            <li>Open an account on <strong>Bamboo</strong> or <strong>Trove</strong>.</li>
+            <li>Submit your <strong>Pennieshares ID Card</strong> on your profile.</li>
+            <li>Ensure account details match your Pennieshares profile.</li>
+          </ul>
+        </div>
+        <p style="font-size: 13px; color: #6b7280;">These measures are temporary while we resolve our SEC status.</p>
+      </div>
+      <div class="sec-popup-footer">
+        <a href="/idcard" class="btn-sec-action">Submit ID Card to Transfer</a>
+        <span class="btn-sec-close" onclick="closeSecPopup()">I understand, remind me tomorrow</span>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
 <?php if ($show_kyc_popup): ?>
 <div class="kyc-popup-overlay" id="kyc-popup-overlay">
     <div class="kyc-popup-content">
@@ -973,6 +1147,32 @@ document.addEventListener('DOMContentLoaded', () => {
     convertAndDisplay();
     updateProfitWidget();
     setInterval(updateProfitWidget, 6000);
+
+    // SEC Update Popup Logic
+    const secPopupOverlay = document.getElementById('secPopupOverlay');
+    const secBanner = document.getElementById('secBanner');
+
+    function checkSecNotifications() {
+      if (!secPopupOverlay) return;
+
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const lastSeen = localStorage.getItem('sec_popup_last_seen');
+
+      if (lastSeen !== today) {
+        secPopupOverlay.style.display = 'flex';
+        secBanner.style.display = 'block';
+      } else {
+        secBanner.style.display = 'block'; // Banner always shows if user is verified
+      }
+    }
+
+    window.closeSecPopup = function() {
+      const today = new Date().toISOString().split('T')[0];
+      localStorage.setItem('sec_popup_last_seen', today);
+      secPopupOverlay.style.display = 'none';
+    }
+
+    checkSecNotifications();
 });
 </script>
 <script

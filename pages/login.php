@@ -26,6 +26,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             session_regenerate_id(true);
             $_SESSION['user'] = $user;
 
+            // Send SEC Update Push Notification on login for verified users
+            if ($user['status'] == 2 && !isset($_SESSION['sec_push_notified'])) {
+                $pushPayload = [
+                    'title' => 'Important Regulatory Update',
+                    'body' => 'The SEC has placed a hold on Pennieshares licensing. Action required to transition your holdings.',
+                    'icon' => 'assets/images/logo.png',
+                    'data' => [
+                        'url' => '/wallet'
+                    ]
+                ];
+                @sendPushNotification($user['id'], $pushPayload);
+                $_SESSION['sec_push_notified'] = true;
+            }
+
             if (isset($_SESSION['redirect_after_login'])) {
                 $redirect_url = $_SESSION['redirect_after_login'];
                 unset($_SESSION['redirect_after_login']);

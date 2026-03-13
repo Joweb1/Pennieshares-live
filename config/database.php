@@ -1,5 +1,7 @@
 <?php
 
+error_reporting(E_ALL & ~E_DEPRECATED);
+
 require_once __DIR__ . '/../vendor/autoload.php';
 
 $dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/..');
@@ -55,10 +57,8 @@ try {
     }
 
 } catch (PDOException $e) {
-    // In a real application, you would log this error and show a generic error page.
-    // For this context, we will avoid outputting anything to prevent breaking JSON responses.
-    // You can uncomment the line below for debugging, but it will cause "headers already sent" errors.
-    // error_log("Database connection failed: " . $e->getMessage());
+    // Log the error to help with debugging
+    error_log("Database error in config/database.php: " . $e->getMessage());
     
     // To prevent the application from continuing with a null $pdo_mysql object.
     // This is better than die() as it allows for graceful error handling in the application.
