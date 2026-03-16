@@ -679,14 +679,15 @@ require_once __DIR__ . '/../assets/template/intro-template.php';
 
     /* SEC Update Banner & Popup Styles */
     .sec-banner {
-      background: #fff5f5;
-      color: #c53030;
+      background: #eff6ff;
+      color: #1e40af;
       padding: 10px 0;
       overflow: hidden;
       white-space: nowrap;
       position: relative;
-      border-bottom: 1px solid #feb2b2;
+      border-bottom: 1px solid #bfdbfe;
       z-index: 5;
+      cursor: pointer;
     }
 
     .sec-banner-text {
@@ -724,6 +725,7 @@ require_once __DIR__ . '/../assets/template/intro-template.php';
       overflow: hidden;
       box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
       animation: popupSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
     }
 
     @keyframes popupSlideUp {
@@ -732,23 +734,38 @@ require_once __DIR__ . '/../assets/template/intro-template.php';
     }
 
     .sec-popup-header {
-      background: #fef2f2;
-      padding: 24px;
+      background: #eff6ff;
+      padding: 32px 24px 24px;
       text-align: center;
-      border-bottom: 1px solid #fee2e2;
+      border-bottom: 1px solid #bfdbfe;
     }
 
     .sec-popup-header i {
       font-size: 48px;
-      color: #ef4444;
+      color: #2563eb;
       margin-bottom: 12px;
     }
 
     .sec-popup-header h2 {
-      color: #991b1b;
+      color: #1e40af;
       margin: 0;
       font-size: 22px;
       font-weight: 700;
+    }
+
+    .sec-popup-close-icon {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      font-size: 24px;
+      color: #64748b;
+      cursor: pointer;
+      z-index: 10;
+      transition: color 0.2s;
+    }
+
+    .sec-popup-close-icon:hover {
+      color: #1e293b;
     }
 
     .sec-popup-body {
@@ -806,18 +823,21 @@ require_once __DIR__ . '/../assets/template/intro-template.php';
 
     /* Dark Mode Support */
     html[data-theme="dark"] .sec-popup-content { background: #1f2937; color: #f3f4f6; }
-    html[data-theme="dark"] .sec-popup-header { background: #450a0a; border-bottom: 1px solid #7f1d1d; }
-    html[data-theme="dark"] .sec-popup-header h2 { color: #fecaca; }
+    html[data-theme="dark"] .sec-popup-header { background: #1e3a8a; border-bottom: 1px solid #1e40af; }
+    html[data-theme="dark"] .sec-popup-header h2 { color: #dbeafe; }
+    html[data-theme="dark"] .sec-popup-header i { color: #60a5fa; }
     html[data-theme="dark"] .sec-popup-body { color: #d1d5db; }
     html[data-theme="dark"] .sec-steps { background: #374151; }
-    html[data-theme="dark"] .sec-banner { background: #450a0a; color: #fecaca; border-bottom: 1px solid #7f1d1d; }
+    html[data-theme="dark"] .sec-banner { background: #1e3a8a; color: #dbeafe; border-bottom: 1px solid #1e40af; }
+    html[data-theme="dark"] .sec-popup-close-icon { color: #94a3b8; }
+    html[data-theme="dark"] .sec-popup-close-icon:hover { color: #f1f5f9; }
 
   </style>
       <div class="content-wrapper">
       
       <?php if($loggedInUser['status'] == 2): ?>
         <!-- Scrolling Banner -->
-        <div class="sec-banner" id="secBanner" style="display:none;">
+        <div class="sec-banner" id="secBanner" style="display:none;" onclick="openSecPopup()">
           <div class="sec-banner-text">
             <i class="fas fa-exclamation-triangle"></i> 
             Important Regulatory Update: The SEC has placed a temporary hold on Pennieshares' licensing. Action required: Please transition your holdings to Bamboo or Trove. Submit your ID Card via profile.
@@ -973,6 +993,7 @@ require_once __DIR__ . '/../assets/template/intro-template.php';
   <!-- SEC Update Popup -->
   <div class="sec-popup-overlay" id="secPopupOverlay">
     <div class="sec-popup-content">
+      <i class="fas fa-times sec-popup-close-icon" onclick="closeSecPopup()"></i>
       <div class="sec-popup-header">
         <i class="fas fa-shield-alt"></i>
         <h2>Important Regulatory Update</h2>
@@ -991,7 +1012,7 @@ require_once __DIR__ . '/../assets/template/intro-template.php';
       </div>
       <div class="sec-popup-footer">
         <a href="/idcard" class="btn-sec-action">Submit ID Card to Transfer</a>
-        <span class="btn-sec-close" onclick="closeSecPopup()">I understand, remind me tomorrow</span>
+        <span class="btn-sec-close" onclick="closeSecPopup()">Close</span>
       </div>
     </div>
   </div>
@@ -1152,27 +1173,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const secPopupOverlay = document.getElementById('secPopupOverlay');
     const secBanner = document.getElementById('secBanner');
 
-    function checkSecNotifications() {
-      if (!secPopupOverlay) return;
-
-      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-      const lastSeen = localStorage.getItem('sec_popup_last_seen');
-
-      if (lastSeen !== today) {
-        secPopupOverlay.style.display = 'flex';
-        secBanner.style.display = 'block';
-      } else {
-        secBanner.style.display = 'block'; // Banner always shows if user is verified
-      }
+    window.openSecPopup = function() {
+        if (secPopupOverlay) secPopupOverlay.style.display = 'flex';
     }
 
     window.closeSecPopup = function() {
-      const today = new Date().toISOString().split('T')[0];
-      localStorage.setItem('sec_popup_last_seen', today);
-      secPopupOverlay.style.display = 'none';
+        if (secPopupOverlay) secPopupOverlay.style.display = 'none';
     }
 
-    checkSecNotifications();
+    if (secBanner) {
+        secBanner.style.display = 'block'; // Banner always shows if user is verified
+    }
+
+    // Close modal when clicking outside
+    if (secPopupOverlay) {
+        secPopupOverlay.addEventListener('click', (e) => {
+            if (e.target === secPopupOverlay) closeSecPopup();
+        });
+    }
 });
 </script>
 <script
